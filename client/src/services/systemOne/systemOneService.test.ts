@@ -176,7 +176,7 @@ describe("SystemOneService", () => {
     const expected = {
       status: "failed",
       reason: "invalid-request",
-      message: "Laya token budget must be a whole number between 256 and 8,192."
+      message: `Laya token budget must be a whole number between 256 and ${(8192).toLocaleString()}.`
     }
 
     await expect(service.ask("laya", request, { maxLen: 0 })).resolves.toMatchObject(expected)
@@ -454,7 +454,9 @@ describe("per-engine limits", () => {
 
     expect(result).toMatchObject({ status: "failed", reason: "context-limit" })
     if (result.status === "success") throw new Error("Expected the request to fail")
-    expect(result.message).toBe("Laya refuses a state over 50,000 characters; this one is 50,001.")
+    expect(result.message).toBe(
+      `Laya refuses a state over ${(50_000).toLocaleString()} characters; this one is ${(50_001).toLocaleString()}.`
+    )
     expect(systemOne).not.toHaveBeenCalled()
   })
 
@@ -473,7 +475,7 @@ describe("per-engine limits", () => {
     expect(wrapped).toMatchObject({
       status: "failed",
       reason: "context-limit",
-      message: "Laya refuses a state over 50,000 characters; this one is 50,001."
+      message: `Laya refuses a state over ${(50_000).toLocaleString()} characters; this one is ${(50_001).toLocaleString()}.`
     })
   })
 
