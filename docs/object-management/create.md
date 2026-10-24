@@ -35,7 +35,7 @@ Copilot fills in the object details automatically. You will still be prompted to
 | Data Element | `DTEL/DE` |
 | Domain | `DOMA` |
 | Database Table | `TABL/DT` |
-| CDS View | `DDLS` |
+| CDS Data Definition | `DDLS/DF` |
 | Message Class | `MSAG/N` |
 | Package | `DEVC/K` |
 
@@ -46,3 +46,11 @@ Many additional types are supported. If the object type you need is not listed, 
 - A **transport request** dialog always appears for objects that require transport. This step cannot be skipped.
 - The new object opens in the editor automatically after creation.
 - Objects must be **activated** before they can be used at runtime.
+
+Class creation uses the ADT V4 representation when the class collection advertises
+`application/vnd.sap.adt.oo.classes.v4+xml` in discovery. Other systems retain the
+legacy representation. A failed creation request is not automatically resent.
+Logon aliases containing `@` are not sent as the backend owner in V4; the authenticated
+backend determines the owner. No system ID or transport number is inferred from a
+connection label. CDS data definitions have their own ADT contract (`DDLS/DF`);
+the class representation is never used for them.

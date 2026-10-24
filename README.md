@@ -1,5 +1,12 @@
 # ABAP FS 🚀
 
+> **Unofficial patched distribution maintained by [scaamp](https://github.com/scaamp).**
+> Based on [marcellourbani/vscode_abap_remote_fs](https://github.com/marcellourbani/vscode_abap_remote_fs) 2.12.0 and [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) 9.2.0, under their original MIT licenses.
+>
+> **[Download the ready-to-install VSIX](https://github.com/scaamp/abap-fs-creation-fix/releases/latest)** · **[Changes, installation, MCP setup and rollback](docs/adt-creation-fix.md)**
+>
+> This build fixes class creation on systems advertising ADT class V4 and preserves sanitized HTTP error details. Class creation was verified in an Extension Development Host; successful MCP class creation was reported by the tester. DDLS creation is a separate contract and is not claimed as fixed. This is an independent repository, not an official release or a GitHub fork relationship.
+
 **A VS Code extension that gives AI assistants real, live access to your SAP system — reads actual code, queries live tables, runs tests, debugs, and understands your custom objects.**
 
 > Ask "How does BAPI_USER_GET_DETAIL work?" and the AI finds the function, reads the code, checks where it's used, and examines related objects — without you opening anything manually.

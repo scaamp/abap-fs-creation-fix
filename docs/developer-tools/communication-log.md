@@ -25,6 +25,11 @@ Click any entry to expand it and see:
 - Request and response bodies (XML and JSON are syntax-highlighted)
 - Duration in milliseconds
 
+Rejected ADT requests retain their HTTP status, response headers and response body.
+Authentication, proxy authentication, cookies and CSRF token headers are redacted by
+the API logger before entries reach the panel. Raw exception objects are not exported.
+Bodies can still contain application data; review an export before sharing it.
+
 ## Filtering Entries
 
 | Filter | How |

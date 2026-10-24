@@ -11,6 +11,7 @@ on:
 
 jobs:
   publish:
+    if: github.repository == 'marcellourbani/vscode_abap_remote_fs'
     name: Publish
     runs-on: ubuntu-latest
     permissions:
