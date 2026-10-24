@@ -23,3 +23,6 @@ catalog:
 
 minimumReleaseAgeExclude:
   - abap-adt-api@9.2.0
+
+patchedDependencies:
+  abap-adt-api@9.2.0: patches/abap-adt-api@9.2.0.patch

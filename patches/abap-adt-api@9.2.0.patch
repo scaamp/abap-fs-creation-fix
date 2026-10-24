@@ -1,0 +1,160 @@
+diff --git a/build/AdtException.js b/build/AdtException.js
+index b94f42c2e5adb892ac307a98555a70725217197f..cad6df71dfd12994281b1667a1eb8a84a518b0bd 100644
+--- a/build/AdtException.js
++++ b/build/AdtException.js
+@@ -183,7 +183,7 @@ const fromResponse = (data, response) => {
+             .replace(/^\s+/, "")
+             .replace(/\s+$/, "");
+     });
+-    return new AdtErrorException(response.status, properties, root.type["@_id"], root.message["#text"], undefined, getf(root.namespace, "@_id"), getf(root.localizedMessage, "#text"));
++    return new AdtErrorException(response.status, properties, root.type["@_id"], root.message["#text"], undefined, getf(root.namespace, "@_id"), getf(root.localizedMessage, "#text"), response);
+ };
+ exports.fromResponse = fromResponse;
+ const fromError = (error) => {
+diff --git a/build/api/objectcreator.js b/build/api/objectcreator.js
+index 7e28ddf0936c72d1deaee06bed952845adedd728..63b7da0ce0ceb7dedc3a141dd9b32b1bb255d3f2 100644
+--- a/build/api/objectcreator.js
++++ b/build/api/objectcreator.js
+@@ -18,6 +18,14 @@ const utilities_1 = require("../utilities");
+ // encodeURIComponent output, so it can never contain the `$` replacement
+ // patterns of String.replace.
+ const formatCreationPath = (path, parent) => path.replace("%s", parent);
++const CLASS_V4 = "application/vnd.sap.adt.oo.classes.v4+xml";
++// Wybierz V4 tylko z deklaracji kolekcji; nie ponawiaj odrzuconego POST.
++async function supportsClassV4(h) {
++    const response = await h.request("/sap/bc/adt/discovery");
++    const discovery = (0, utilities_1.fullParse)(response.body);
++    return (0, utilities_1.xmlArray)(discovery, "app:service", "app:workspace").some(workspace => (0, utilities_1.xmlArray)(workspace, "app:collection").some(collection => collection["@_href"] === "/sap/bc/adt/oo/classes" &&
++        (0, utilities_1.xmlArray)(collection, "app:accept").includes(CLASS_V4)));
++}
+ exports.BindinTypes = [
+     { description: "Odata V2 - Web API", bindingtype: "ODATA", category: "0" },
+     { description: "Odata V2 - UI", bindingtype: "ODATA", category: "1" }
+@@ -97,6 +105,26 @@ function createBodyBinding(options, type) {
+       </srvb:binding>`;
+     return createBodySimple(options, type, body);
+ }
++// Reprezentacja klasy V4 jak w ADT; brak właściciela/systemu pozostawia kontekst serwera.
++function createBodyClassV4(options, type) {
++    var _a;
++    const language = (options.language || "EN").toUpperCase();
++    const masterLanguage = (options.masterLanguage || language).toUpperCase();
++    // Alias logowania (np. e-mail) nie jest identyfikatorem użytkownika ABAP.
++    const responsible = ((_a = options.responsible) === null || _a === void 0 ? void 0 : _a.includes("@")) ? "" : options.responsible || "";
++    return `<?xml version="1.0" encoding="UTF-8"?>
++<${type.rootName} ${type.nameSpace} xmlns:adtcore="http://www.sap.com/adt/core"
++  ${xmlAttribute(options.description, "adtcore:description")}
++  ${xmlAttribute(options.name, "adtcore:name")} adtcore:type="CLAS/OC"
++  adtcore:language="${(0, utilities_1.encodeEntity)(language)}" adtcore:masterLanguage="${(0, utilities_1.encodeEntity)(masterLanguage)}"
++  ${xmlAttribute(options.masterSystem || "", "adtcore:masterSystem")}
++  ${xmlAttribute(responsible.toUpperCase(), "adtcore:responsible")}
++  class:final="true" class:visibility="public">
++  <adtcore:packageRef ${xmlAttribute(options.parentName, "adtcore:name")}/>
++  <class:include adtcore:name="CLAS/OC" adtcore:type="CLAS/OC" class:includeType="testclasses"/>
++  <class:superClassRef/>
++</${type.rootName}>`;
++}
+ function createBody(options, type) {
+     switch (type.typeId) {
+         case "DEVC/K":
+@@ -163,15 +191,20 @@ async function createObject(h, options) {
+         throw (0, AdtException_1.adtException)("Unsupported object type");
+     const url = "/sap/bc/adt/" +
+         formatCreationPath(ot.creationPath, encodeURIComponent(options.parentName.toLowerCase()));
+-    options.responsible = (options.responsible || h.username).toUpperCase();
+-    const body = createBody(options, ot);
++    const classV4 = options.objtype === "CLAS/OC" && await supportsClassV4(h);
++    const context = {
++        ...options,
++        language: classV4 ? options.language || h.language || "EN" : options.language,
++        responsible: classV4 ? options.responsible : (options.responsible || h.username).toUpperCase()
++    };
++    const body = classV4 ? createBodyClassV4(context, ot) : createBody(context, ot);
+     const qs = {};
+     if (options.transport)
+         qs.corrNr = options.transport;
+     // will raise exceptions on failure
+     await h.request(url, {
+         body,
+-        headers: { "Content-Type": "application/*" },
++        headers: { "Content-Type": classV4 ? CLASS_V4 : "application/*" },
+         method: "POST",
+         qs
+     });
+diff --git a/build/requestLogger.js b/build/requestLogger.js
+index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..142cb4f6db9c62f094c7ffe628e15e57b0a13467 100644
+--- a/build/requestLogger.js
++++ b/build/requestLogger.js
+@@ -7,13 +7,16 @@ exports.logResponse = exports.logError = exports.redactSensitiveHeaders = void 0
+ const axios_1 = __importDefault(require("axios"));
+ const _1 = require(".");
+ const utilities_1 = require("./utilities");
+-const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization)$/i;
++const AdtHTTP_1 = require("./AdtHTTP");
++const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization|proxy-authorization)$/i;
+ const redactSensitiveHeaders = (headers) => headers &&
+     Object.fromEntries(Object.entries(headers).map(([k, v]) => [
+         k,
+         SENSITIVE_HEADER.test(k) ? "[redacted]" : v
+     ]));
+ exports.redactSensitiveHeaders = redactSensitiveHeaders;
++// Token CSRF jest potrzebny klasyfikacji błędów sesji; ukrywaj go dopiero w logu.
++const redactLogHeaders = (headers) => Object.fromEntries(Object.entries((0, exports.redactSensitiveHeaders)(headers)).map(([key, value]) => [key, /^x-csrf-token$/i.test(key) ? "[redacted]" : value]));
+ const getLoggingData = (config) => {
+     if (!(0, utilities_1.isObject)(config))
+         return { id: -1, startTime: new Date(), duration: 0 };
+@@ -29,7 +32,9 @@ const createLogData = (request, response, clientId, config, error) => {
+     var _a;
+     const { id, duration, startTime } = getLoggingData(config);
+     const stateful = ((_a = request.headers) === null || _a === void 0 ? void 0 : _a["X-sap-adt-sessiontype"]) === _1.session_types.stateful;
+-    return { id, request, response, startTime, duration, stateful, clientId };
++    // Nie przekazuj surowego wyjątku: jego parent/config mogą zawierać credentiale.
++    const safeError = error ? new Error(`HTTP request failed (${response.statusCode})`) : undefined;
++    return { id, request, response, startTime, duration, stateful, clientId, error: safeError };
+ };
+ const convertRequest = (original) => {
+     if (!(0, utilities_1.isObject)(original))
+@@ -39,7 +44,7 @@ const convertRequest = (original) => {
+         method: method || "GET",
+         uri: (0, utilities_1.isString)(url) ? url : "",
+         params: (0, utilities_1.isObject)(qs) ? { ...qs } : {},
+-        headers: (0, utilities_1.isObject)(headers) ? { ...headers } : {},
++        headers: (0, utilities_1.isObject)(headers) ? redactLogHeaders({ ...headers }) : {},
+         body: (0, utilities_1.isString)(body) || (0, utilities_1.isUndefined)(body) ? body : JSON.stringify(body)
+     };
+ };
+@@ -48,7 +53,7 @@ const convertAxiosResponse = (original) => {
+         return { headers: {}, statusCode: 0, statusMessage: "" };
+     const { headers, data, status, statusText } = original;
+     return {
+-        headers: headers ? { ...headers } : {},
++        headers: headers ? redactLogHeaders({ ...headers }) : {},
+         statusCode: status,
+         statusMessage: statusText,
+         body: (0, utilities_1.isString)(data) ? data : JSON.stringify(data)
+@@ -58,9 +63,15 @@ const convertResponse = (original) => {
+     if (!original)
+         return { headers: {}, statusCode: 0, statusMessage: "" };
+     if ((0, _1.isAdtException)(original)) {
++        // Zachowaj odpowiedź ADT oraz odpowiedź transportu dla błędów innych niż XML.
++        const response = (0, _1.isHttpError)(original) && (0, AdtHTTP_1.isHttpClientException)(original.parent)
++            ? original.parent.response
++            : (0, _1.isAdtError)(original) ? original.response : undefined;
++        if (response)
++            return convertResponse(response);
+         const resp = {
+             headers: {},
+-            statusCode: (0, _1.isAdtError)(original) ? original.err : 501,
++            statusCode: (0, _1.isAdtError)(original) ? original.err : (0, _1.isHttpError)(original) ? original.status : 0,
+             statusMessage: original.message
+         };
+         return resp;
+@@ -68,7 +79,7 @@ const convertResponse = (original) => {
+     else {
+         const { headers, body, status, statusText } = original;
+         return {
+-            headers: headers ? { ...headers } : {},
++            headers: headers ? redactLogHeaders({ ...headers }) : {},
+             statusCode: status,
+             statusMessage: statusText,
+             body: (0, utilities_1.isString)(body) ? body : JSON.stringify(body)

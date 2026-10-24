@@ -1,0 +1,122 @@
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -49,6 +49,20 @@
+   typeId: CreatableTypeIds
+   extra?: string
+   maxLen: number
++}
++
++const CLASS_V4 = "application/vnd.sap.adt.oo.classes.v4+xml"
++
++// Wybierz V4 tylko z deklaracji kolekcji; nie ponawiaj odrzuconego POST.
++async function supportsClassV4(h: AdtHTTP) {
++  const response = await h.request("/sap/bc/adt/discovery")
++  const discovery = fullParse(response.body)
++  return xmlArray(discovery, "app:service", "app:workspace").some(workspace =>
++    xmlArray<{ "@_href"?: string }>(workspace, "app:collection").some(collection =>
++      collection["@_href"] === "/sap/bc/adt/oo/classes" &&
++      xmlArray(collection, "app:accept").includes(CLASS_V4)
++    )
++  )
+ }
+ 
+ interface BaseValidateOptions {
+@@ -321,6 +335,7 @@
+       ot.creationPath,
+       encodeURIComponent(options.parentName.toLowerCase())
+     )
++  const classV4 = options.objtype === "CLAS/OC" && await supportsClassV4(h)
+   options.responsible = (options.responsible || h.username).toUpperCase()
+   const body = createBody(options, ot)
+   const qs: any = {}
+@@ -329,7 +344,7 @@
+   // will raise exceptions on failure
+   await h.request(url, {
+     body,
+-    headers: { "Content-Type": "application/*" },
++    headers: { "Content-Type": classV4 ? CLASS_V4 : "application/*" },
+     method: "POST",
+     qs
+   })
+--- /dev/null
++++ b/src/api/classcreation.test.ts
+@@ -0,0 +1,79 @@
++import { AdtHTTP } from "../AdtHTTP"
++import { fullParse } from "../utilities"
++import { createObject, NewObjectOptions } from "./objectcreator"
++
++const v4 = "application/vnd.sap.adt.oo.classes.v4+xml"
++const options: NewObjectOptions = {
++  objtype: "CLAS/OC",
++  name: "ZCL_EXAMPLE",
++  description: 'Example & "class"',
++  parentName: "ZEXAMPLE",
++  parentPath: "/sap/bc/adt/packages/zexample"
++}
++
++function setup(accept = v4, href = "/sap/bc/adt/oo/classes") {
++  const http = new AdtHTTP(
++    "https://example.invalid",
++    "alias@example.invalid",
++    "unused",
++    "001",
++    "de"
++  )
++  const request = jest.spyOn(http, "request").mockImplementation(async url => ({
++    status: 200,
++    statusText: "OK",
++    headers: {},
++    body:
++      url === "/sap/bc/adt/discovery"
++        ? `<app:service xmlns:app="http://www.w3.org/2007/app"><app:workspace><app:collection href="${href}"><app:accept>${accept}</app:accept></app:collection></app:workspace></app:service>`
++        : ""
++  }))
++  return { http, request }
++}
++
++describe("class creation media negotiation", () => {
++  test("uses V4 only when advertised by the class collection", async () => {
++    const { http, request } = setup()
++    await createObject(http, { ...options, transport: "EXAMPLE_REQUEST" })
++    expect(request.mock.calls[1]).toEqual([
++      "/sap/bc/adt/oo/classes",
++      expect.objectContaining({
++        method: "POST",
++        headers: { "Content-Type": v4 },
++        qs: { corrNr: "EXAMPLE_REQUEST" }
++      })
++    ])
++  })
++
++  test.each([
++    ["application/xml", "/sap/bc/adt/oo/classes"],
++    [v4, "/sap/bc/adt/oo/interfaces"],
++    ["", "/sap/bc/adt/oo/classes"]
++  ])("preserves legacy creation for %s on %s", async (accept, href) => {
++    const { http, request } = setup(accept, href)
++    await createObject(http, { ...options })
++    const config = request.mock.calls[1][1]!
++    expect(config.headers).toEqual({ "Content-Type": "application/*" })
++    expect(config.body).not.toContain("class:superClassRef")
++  })
++
++  test("does not POST when discovery fails", async () => {
++    const { http, request } = setup()
++    request.mockRejectedValue(new Error("Discovery failed"))
++    await expect(createObject(http, { ...options })).rejects.toThrow("Discovery failed")
++    expect(request).toHaveBeenCalledTimes(1)
++  })
++
++  test("does not retry a rejected POST", async () => {
++    const { http, request } = setup()
++    request.mockImplementationOnce(async () => ({
++      status: 200,
++      statusText: "OK",
++      headers: {},
++      body: `<app:service><app:workspace><app:collection href="/sap/bc/adt/oo/classes"><app:accept>${v4}</app:accept></app:collection></app:workspace></app:service>`
++    }))
++    request.mockRejectedValue(new Error("Creation failed"))
++    await expect(createObject(http, { ...options })).rejects.toThrow("Creation failed")
++    expect(request).toHaveBeenCalledTimes(2)
++  })
++})

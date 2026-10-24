@@ -1,0 +1,126 @@
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -236,6 +236,26 @@
+   return createBodySimple(options, type, body)
+ }
+ 
++// Reprezentacja klasy V4 jak w ADT; brak właściciela/systemu pozostawia kontekst serwera.
++function createBodyClassV4(options: NewObjectOptions, type: CreatableType) {
++  const language = (options.language || "EN").toUpperCase()
++  const masterLanguage = (options.masterLanguage || language).toUpperCase()
++  // Alias logowania (np. e-mail) nie jest identyfikatorem użytkownika ABAP.
++  const responsible = options.responsible?.includes("@") ? "" : options.responsible || ""
++  return `<?xml version="1.0" encoding="UTF-8"?>
++<${type.rootName} ${type.nameSpace} xmlns:adtcore="http://www.sap.com/adt/core"
++  ${xmlAttribute(options.description, "adtcore:description")}
++  ${xmlAttribute(options.name, "adtcore:name")} adtcore:type="CLAS/OC"
++  adtcore:language="${encodeEntity(language)}" adtcore:masterLanguage="${encodeEntity(masterLanguage)}"
++  ${xmlAttribute(options.masterSystem || "", "adtcore:masterSystem")}
++  ${xmlAttribute(responsible.toUpperCase(), "adtcore:responsible")}
++  class:final="true" class:visibility="public">
++  <adtcore:packageRef ${xmlAttribute(options.parentName, "adtcore:name")}/>
++  <class:include adtcore:name="CLAS/OC" adtcore:type="CLAS/OC" class:includeType="testclasses"/>
++  <class:superClassRef/>
++</${type.rootName}>`
++}
++
+ function createBody(options: NewObjectOptions, type: CreatableType) {
+   switch (type.typeId) {
+     case "DEVC/K":
+@@ -336,8 +356,12 @@
+       encodeURIComponent(options.parentName.toLowerCase())
+     )
+   const classV4 = options.objtype === "CLAS/OC" && await supportsClassV4(h)
+-  options.responsible = (options.responsible || h.username).toUpperCase()
+-  const body = createBody(options, ot)
++  const context = {
++    ...options,
++    language: classV4 ? options.language || h.language || "EN" : options.language,
++    responsible: classV4 ? options.responsible : (options.responsible || h.username).toUpperCase()
++  }
++  const body = classV4 ? createBodyClassV4(context, ot) : createBody(context, ot)
+   const qs: any = {}
+   if (options.transport) qs.corrNr = options.transport
+ 
+--- a/src/api/classcreation.test.ts
++++ b/src/api/classcreation.test.ts
+@@ -77,3 +77,79 @@
+     expect(request).toHaveBeenCalledTimes(2)
+   })
+ })
++
++describe("class V4 XML", () => {
++  test("serializes the ADT class attributes, include and superclass reference", async () => {
++    const { http, request } = setup()
++    const input = {
++      ...options,
++      language: "en",
++      masterLanguage: "pl",
++      masterSystem: "DEV",
++      responsible: "dev_user"
++    }
++    await createObject(http, input)
++    const root = fullParse(request.mock.calls[1][1]!.body!)["class:abapClass"]
++    expect(root).toMatchObject({
++      "@_xmlns:class": "http://www.sap.com/adt/oo/classes",
++      "@_xmlns:adtcore": "http://www.sap.com/adt/core",
++      "@_adtcore:type": "CLAS/OC",
++      "@_adtcore:name": options.name,
++      "@_adtcore:description": options.description,
++      "@_adtcore:language": "EN",
++      "@_adtcore:masterLanguage": "PL",
++      "@_adtcore:masterSystem": "DEV",
++      "@_adtcore:responsible": "DEV_USER",
++      "@_class:final": true,
++      "@_class:visibility": "public",
++      "adtcore:packageRef": { "@_adtcore:name": options.parentName },
++      "class:include": {
++        "@_adtcore:name": "CLAS/OC",
++        "@_adtcore:type": "CLAS/OC",
++        "@_class:includeType": "testclasses"
++      }
++    })
++    expect(root).toHaveProperty("class:superClassRef")
++    expect(input.responsible).toBe("dev_user")
++  })
++
++  test.each([undefined, "alias@example.invalid"])(
++    "does not infer backend owner from login alias %s",
++    async responsible => {
++      const { http, request } = setup()
++      await createObject(http, { ...options, responsible })
++      const root = fullParse(request.mock.calls[1][1]!.body!)["class:abapClass"]
++      expect(root["@_adtcore:language"]).toBe("DE")
++      expect(root["@_adtcore:masterLanguage"]).toBe("DE")
++      expect(root).not.toHaveProperty("@_adtcore:responsible")
++      expect(root).not.toHaveProperty("@_adtcore:masterSystem")
++      expect(request.mock.calls[1][1]!.qs).toEqual({})
++    }
++  )
++
++  test("escapes context attributes", async () => {
++    const { http, request } = setup()
++    await createObject(http, {
++      ...options,
++      parentName: 'Z&A"B',
++      name: 'Z&A"C',
++      masterSystem: 'D&E"V'
++    })
++    const root = fullParse(request.mock.calls[1][1]!.body!)["class:abapClass"]
++    expect(root["adtcore:packageRef"]["@_adtcore:name"]).toBe('Z&A"B')
++    expect(root["@_adtcore:name"]).toBe('Z&A"C')
++    expect(root["@_adtcore:masterSystem"]).toBe('D&E"V')
++  })
++
++  test("leaves DDLS and other object contracts unchanged", async () => {
++    const { http, request } = setup()
++    await createObject(http, { ...options, objtype: "DDLS/DF", language: "en" })
++    expect(request).toHaveBeenCalledTimes(1)
++    const [url, config] = request.mock.calls[0]
++    expect(url).toBe("/sap/bc/adt/ddic/ddl/sources")
++    expect(config!.headers).toEqual({ "Content-Type": "application/*" })
++    const root = fullParse(config!.body!)["ddl:ddlSource"]
++    expect(root["@_adtcore:language"]).toBe("en")
++    expect(root).not.toHaveProperty("class:include")
++  })
++})

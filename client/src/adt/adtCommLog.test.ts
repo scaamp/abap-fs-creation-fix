@@ -212,6 +212,38 @@ describe("CallLogger", () => {
     expect(last.status).toBe(200)
   })
 
+  it("displays the rejected creation response supplied by abap-adt-api", () => {
+    clearEntries()
+    const logger = CallLogger.getOrCreate("example")
+    logger.add({
+      id: 1,
+      clientId: 1,
+      stateful: false,
+      request: {
+        method: "POST",
+        uri: "/sap/bc/adt/oo/classes",
+        params: {},
+        headers: { Authorization: "[redacted]" },
+        body: "<class:abapClass/>"
+      },
+      response: {
+        statusCode: 400,
+        statusMessage: "Bad Request",
+        headers: { "content-type": "application/xml" },
+        body: "<exception>Cannot deserialize class</exception>"
+      },
+      error: new Error("HTTP request failed (400)"),
+      duration: 10,
+      startTime: new Date()
+    })
+    expect(getLogEntries()[0]).toMatchObject({
+      status: 400,
+      error: true,
+      responseHeaders: { "content-type": "application/xml" },
+      responseBody: "<exception>Cannot deserialize class</exception>"
+    })
+  })
+
   it("caps large response bodies", () => {
     clearEntries()
     const logger = CallLogger.getOrCreate("testconn4")

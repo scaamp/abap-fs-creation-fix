@@ -1,0 +1,216 @@
+--- a/src/AdtException.ts
++++ b/src/AdtException.ts
+@@ -249,7 +249,8 @@
+     root.message["#text"],
+     undefined,
+     getf(root.namespace, "@_id"),
+-    getf(root.localizedMessage, "#text")
++    getf(root.localizedMessage, "#text"),
++    response
+   )
+ }
+ 
+--- a/src/requestLogger.ts
++++ b/src/requestLogger.ts
+@@ -1,7 +1,7 @@
+ import axios, { AxiosResponse } from "axios"
+-import { AdtException, isAdtError, isAdtException, session_types } from "."
++import { AdtException, isAdtError, isAdtException, isHttpError, session_types } from "."
+ import { isNumber, isObject, isString, isUndefined } from "./utilities"
+-import { HeaderValue, HttpClientOptions, HttpClientResponse } from "./AdtHTTP"
++import { HeaderValue, HttpClientOptions, HttpClientResponse, isHttpClientException } from "./AdtHTTP"
+ 
+ export interface RequestData {
+   method: string
+@@ -33,7 +33,7 @@
+   (data: LogData): void
+ }
+ 
+-const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization)$/i
++const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization|proxy-authorization)$/i
+ 
+ export const redactSensitiveHeaders = <T extends object | undefined>(
+   headers: T
+@@ -45,6 +45,12 @@
+       SENSITIVE_HEADER.test(k) ? "[redacted]" : v
+     ])
+   ) as T)
++
++// Token CSRF jest potrzebny klasyfikacji błędów sesji; ukrywaj go dopiero w logu.
++const redactLogHeaders = <T extends object>(headers: T): T =>
++  Object.fromEntries(Object.entries(redactSensitiveHeaders(headers)).map(([key, value]) =>
++    [key, /^x-csrf-token$/i.test(key) ? "[redacted]" : value]
++  )) as T
+ 
+ interface LoggingConfig {
+   adtRequestNumber: number
+@@ -73,7 +79,9 @@
+   const { id, duration, startTime } = getLoggingData(config)
+   const stateful =
+     request.headers?.["X-sap-adt-sessiontype"] === session_types.stateful
+-  return { id, request, response, startTime, duration, stateful, clientId }
++  // Nie przekazuj surowego wyjątku: jego parent/config mogą zawierać credentiale.
++  const safeError = error ? new Error(`HTTP request failed (${response.statusCode})`) : undefined
++  return { id, request, response, startTime, duration, stateful, clientId, error: safeError }
+ }
+ 
+ const convertRequest = (original?: unknown): RequestData => {
+@@ -84,7 +92,7 @@
+     method: method || "GET",
+     uri: isString(url) ? url : "",
+     params: isObject(qs) ? { ...qs } : {},
+-    headers: isObject(headers) ? { ...headers } : {},
++    headers: isObject(headers) ? redactLogHeaders({ ...headers }) : {},
+     body: isString(body) || isUndefined(body) ? body : JSON.stringify(body)
+   }
+ }
+@@ -92,7 +100,7 @@
+   if (!original) return { headers: {}, statusCode: 0, statusMessage: "" }
+   const { headers, data, status, statusText } = original
+   return {
+-    headers: headers ? { ...headers } : {},
++    headers: headers ? redactLogHeaders({ ...headers }) : {},
+     statusCode: status,
+     statusMessage: statusText,
+     body: isString(data) ? data : JSON.stringify(data)
+@@ -104,16 +112,21 @@
+ ): ResponseData => {
+   if (!original) return { headers: {}, statusCode: 0, statusMessage: "" }
+   if (isAdtException(original)) {
++    // Zachowaj odpowiedź ADT oraz odpowiedź transportu dla błędów innych niż XML.
++    const response = isHttpError(original) && isHttpClientException(original.parent)
++      ? original.parent.response
++      : isAdtError(original) ? original.response : undefined
++    if (response) return convertResponse(response)
+     const resp: ResponseData = {
+       headers: {},
+-      statusCode: isAdtError(original) ? original.err : 501,
++      statusCode: isAdtError(original) ? original.err : isHttpError(original) ? original.status : 0,
+       statusMessage: original.message
+     }
+     return resp
+   } else {
+     const { headers, body, status, statusText } = original
+     return {
+-      headers: headers ? { ...headers } : {},
++      headers: headers ? redactLogHeaders({ ...headers }) : {},
+       statusCode: status,
+       statusMessage: statusText,
+       body: isString(body) ? body : JSON.stringify(body)
+--- /dev/null
++++ b/src/requestLogger.test.ts
+@@ -0,0 +1,114 @@
++import { AdtHTTP, HttpClient, HttpClientException, HttpClientResponse } from "./AdtHTTP"
++import { isAdtError } from "./AdtException"
++import { LogData } from "./requestLogger"
++
++const body = `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="adt"/><type id="CLASS_TRANSFORMATION"/><message>Cannot deserialize class</message></exc:exception>`
++
++describe("HTTP error diagnostics", () => {
++  test.each([true, false])(
++    "preserves the ADT response for throwing transport = %s",
++    async throws => {
++      const entries: LogData[] = []
++      const response: HttpClientResponse = {
++        status: 400,
++        statusText: "Bad Request",
++        body,
++        headers: {
++          "content-type": "application/xml",
++          "set-cookie": ["private-cookie"],
++          "X-CSRF-Token": "private-token"
++        }
++      }
++      const transport: HttpClient = {
++        request: async options => {
++          if (options.url === "/sap/bc/adt/compatibility/graph")
++            return {
++              status: 200,
++              statusText: "OK",
++              headers: { "x-csrf-token": "private-token" },
++              body: ""
++            }
++          if (throws)
++            throw new HttpClientException(
++              "Bad Request",
++              undefined,
++              400,
++              undefined,
++              options,
++              response
++            )
++          return response
++        }
++      }
++      const http = new AdtHTTP(transport, "example", "private-password", "001", "EN", {
++        debugCallback: entry => entries.push(entry)
++      })
++      const error = await http
++        .request("/sap/bc/adt/oo/classes", {
++          method: "POST",
++          body: "<class/>",
++          headers: {
++            Authorization: "private-bearer",
++            Cookie: "private-cookie",
++            "Proxy-Authorization": "private-proxy"
++          }
++        })
++        .catch(error => error)
++      expect(isAdtError(error)).toBe(true)
++      expect(error.response.body).toBe(body)
++      const entry = entries[entries.length - 1]
++      expect(entry.response.statusCode).toBe(400)
++      expect(entry.response.body).toBe(body)
++      expect(entry.response.headers["content-type"]).toBe("application/xml")
++      expect(entry.request.body).toBe("<class/>")
++      expect(entry.error).toBeInstanceOf(Error)
++      const serialized = JSON.stringify(entry)
++      for (const secret of [
++        "private-password",
++        "private-token",
++        "private-cookie",
++        "private-bearer",
++        "private-proxy"
++      ])
++        expect(serialized).not.toContain(secret)
++      expect(response.headers["set-cookie"]).toEqual(["private-cookie"])
++    }
++  )
++
++  test("preserves non-XML HTTP errors and reports network failures without invented status", async () => {
++    const entries: LogData[] = []
++    const transport: HttpClient = {
++      request: async options => {
++        if (options.url === "/sap/bc/adt/compatibility/graph")
++          return { status: 200, statusText: "OK", headers: { "x-csrf-token": "example" }, body: "" }
++        const response =
++          options.url === "/http-error"
++            ? {
++                status: 502,
++                statusText: "Bad Gateway",
++                headers: {},
++                body: "<html>Gateway unavailable</html>"
++              }
++            : undefined
++        throw new HttpClientException(
++          "Request failed",
++          undefined,
++          response?.status,
++          undefined,
++          options,
++          response
++        )
++      }
++    }
++    const http = new AdtHTTP(transport, "example", "unused", "001", "EN", {
++      debugCallback: entry => entries.push(entry)
++    })
++    await expect(http.request("/http-error")).rejects.toBeDefined()
++    expect(entries[entries.length - 1].response).toMatchObject({
++      statusCode: 502,
++      body: "<html>Gateway unavailable</html>"
++    })
++    await expect(http.request("/network-error")).rejects.toBeDefined()
++    expect(entries[entries.length - 1].response.statusCode).toBe(0)
++  })
++})

@@ -1,3 +1,7 @@
 # Set default behavior to automatically normalize line endings.
 * text=auto
 
+# Preserve portable patches; a blank unified-diff context line is a single space.
+*.patch text eol=lf
+patches/source/*.patch whitespace=-blank-at-eol
+

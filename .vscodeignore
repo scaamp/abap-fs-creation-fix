@@ -64,6 +64,8 @@ abap remote fs.code-workspace
 *.vsix
 build-and-install.bat
 diff.txt
+debug.log
+patches/source/**
 .changeset/**
 data/**
 .markdownlint.jsonc
