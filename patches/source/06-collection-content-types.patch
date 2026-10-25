@@ -1,0 +1,224 @@
+diff --git a/src/api/objectcreator.ts b/src/api/objectcreator.ts
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -54,15 +54,21 @@
+ const CLASS_V4 = "application/vnd.sap.adt.oo.classes.v4+xml"
+ const DDLS_XML = "application/vnd.sap.adt.ddlSource+xml"
+ 
+-// Wybierz V4 tylko z deklaracji kolekcji; nie ponawiaj odrzuconego POST.
+-async function supportsClassV4(h: AdtHTTP) {
++// Wybierz XML zadeklarowany dla konkretnej kolekcji, nigdy MIME wyliczony z URL.
++// Klasy mają osobny serializer V4. Brak deklaracji zachowuje starszą ścieżkę.
++async function creationMediaType(h: AdtHTTP, path: string) {
+   const response = await h.request("/sap/bc/adt/discovery")
+-  const discovery = fullParse(response.body)
+-  return xmlArray(discovery, "app:service", "app:workspace").some(workspace =>
+-    xmlArray<{ "@_href"?: string }>(workspace, "app:collection").some(collection =>
+-      collection["@_href"] === "/sap/bc/adt/oo/classes" &&
+-      xmlArray(collection, "app:accept").includes(CLASS_V4)
++  const discovery = fullParse(response.body || "")
++  const accepted = xmlArray(discovery, "app:service", "app:workspace").flatMap(workspace =>
++    xmlArray<{ "@_href"?: string }>(workspace, "app:collection").flatMap(collection =>
++      collection["@_href"]?.replace(/^https?:\/\/[^/]+/, "").replace(/\/$/, "") === path
++        ? xmlArray<unknown>(collection, "app:accept").filter((value): value is string => typeof value === "string")
++        : []
+     )
++  )
++  if (path === "/sap/bc/adt/oo/classes") return accepted.includes(CLASS_V4) ? CLASS_V4 : undefined
++  return accepted.map(value => value.split(";", 1)[0].trim()).find(value =>
++    /^application\/vnd\.sap\.adt\.[A-Za-z0-9_.+-]+\+xml$/.test(value)
+   )
+ }
+ 
+@@ -361,15 +367,14 @@
+       ot.creationPath,
+       encodeURIComponent(options.parentName.toLowerCase())
+     )
+-  const classV4 = options.objtype === "CLAS/OC" && await supportsClassV4(h)
++  const contentType = await creationMediaType(h, url) || (options.objtype === "DDLS/DF" ? DDLS_XML : "application/*")
++  const classV4 = options.objtype === "CLAS/OC" && contentType === CLASS_V4
+   const context = {
+     ...options,
+     language: classV4 ? options.language || h.language || "EN" : options.language,
+     responsible: classV4 ? options.responsible : (options.responsible || h.username).toUpperCase()
+   }
+   const body = classV4 ? createBodyClassV4(context, ot) : createBody(context, ot)
+-  // DDLS ma osobny kontrakt mediów; zmiana nagłówka nie zmienia jego XML.
+-  const contentType = classV4 ? CLASS_V4 : options.objtype === "DDLS/DF" ? DDLS_XML : "application/*"
+   const qs: any = {}
+   if (options.transport) qs.corrNr = options.transport
+ 
+diff --git a/src/api/classcreation.test.ts b/src/api/classcreation.test.ts
+--- a/src/api/classcreation.test.ts
++++ b/src/api/classcreation.test.ts
+@@ -144,8 +144,8 @@
+   test("does not apply the class V4 XML contract to DDLS", async () => {
+     const { http, request } = setup()
+     await createObject(http, { ...options, objtype: "DDLS/DF", language: "en" })
+-    expect(request).toHaveBeenCalledTimes(1)
+-    const [url, config] = request.mock.calls[0]
++    expect(request).toHaveBeenCalledTimes(2)
++    const [url, config] = request.mock.calls[1]
+     expect(url).toBe("/sap/bc/adt/ddic/ddl/sources")
+     expect(config!.headers).toEqual({ "Content-Type": "application/vnd.sap.adt.ddlSource+xml" })
+     const root = fullParse(config!.body!)["ddl:ddlSource"]
+diff --git a/src/api/ddlscreation.test.ts b/src/api/ddlscreation.test.ts
+--- a/src/api/ddlscreation.test.ts
++++ b/src/api/ddlscreation.test.ts
+@@ -32,8 +32,8 @@
+   test("uses the DDLS metadata media type on the creation POST", async () => {
+     const { http, request } = setup()
+     await createObject(http, { ...options, transport: "DEVK900123" })
+-    expect(request).toHaveBeenCalledTimes(1)
+-    expect(request.mock.calls[0]).toEqual([
++    expect(request).toHaveBeenCalledTimes(2)
++    expect(request.mock.calls[1]).toEqual([
+       "/sap/bc/adt/ddic/ddl/sources",
+       expect.objectContaining({
+         method: "POST",
+@@ -46,7 +46,7 @@
+   test("keeps the DDLS XML seed except for the invalid default owner", async () => {
+     const { http, request } = setup()
+     await createObject(http, options)
+-    const config = request.mock.calls[0][1]!
++    const config = request.mock.calls[1][1]!
+     const { "#text": whitespace, ...root } = fullParse(config.body!)["ddl:ddlSource"]
+     expect(whitespace.trim()).toBe("")
+     expect(root).toEqual({
+@@ -68,7 +68,7 @@
+     async responsible => {
+       const { http, request } = setup()
+       await createObject(http, { ...options, responsible })
+-      const body = request.mock.calls[0][1]!.body!
++      const body = request.mock.calls[1][1]!.body!
+       expect(body).not.toContain("adtcore:responsible=")
+       expect(body).not.toContain("ALIAS@EXAMPLE.INVALID")
+     }
+@@ -79,7 +79,7 @@
+     async responsible => {
+       const { http, request } = setup()
+       await createObject(http, { ...options, responsible: responsible.toLowerCase() })
+-      const root = fullParse(request.mock.calls[0][1]!.body!)["ddl:ddlSource"]
++      const root = fullParse(request.mock.calls[1][1]!.body!)["ddl:ddlSource"]
+       expect(root["@_adtcore:responsible"]).toBe(responsible)
+     }
+   )
+@@ -93,7 +93,7 @@
+       body: ""
+     })
+     await createObject(http, options)
+-    const root = fullParse(request.mock.calls[0][1]!.body!)["ddl:ddlSource"]
++    const root = fullParse(request.mock.calls[1][1]!.body!)["ddl:ddlSource"]
+     expect(root["@_adtcore:responsible"]).toBe("DEV_USER")
+   })
+ 
+@@ -105,7 +105,7 @@
+       masterSystem: "DEV",
+       masterLanguage: "PL"
+     })
+-    const root = fullParse(request.mock.calls[0][1]!.body!)["ddl:ddlSource"]
++    const root = fullParse(request.mock.calls[1][1]!.body!)["ddl:ddlSource"]
+     expect(root).toMatchObject({
+       "@_adtcore:responsible": "DEV_USER",
+       "@_adtcore:masterSystem": "DEV",
+@@ -115,9 +115,10 @@
+ 
+   test("propagates a rejected POST without retrying or changing the media type", async () => {
+     const { http, request } = setup()
++    request.mockResolvedValueOnce({ status: 200, statusText: "OK", headers: {}, body: "" })
+     request.mockRejectedValue(new Error("Unsupported Media Type"))
+     await expect(createObject(http, options)).rejects.toThrow("Unsupported Media Type")
+-    expect(request).toHaveBeenCalledTimes(1)
++    expect(request).toHaveBeenCalledTimes(2)
+   })
+ 
+   test.each<NewObjectOptions["objtype"]>([
+@@ -131,8 +132,8 @@
+   ])("does not use the DDLS media type for %s", async objtype => {
+     const { http, request } = setup()
+     await createObject(http, { ...options, objtype })
+-    expect(request).toHaveBeenCalledTimes(1)
+-    expect(request.mock.calls[0][1]!.headers).toEqual({
++    expect(request).toHaveBeenCalledTimes(2)
++    expect(request.mock.calls[1][1]!.headers).toEqual({
+       "Content-Type": "application/*"
+     })
+   })
+diff --git a/src/api/objectcreator.test.ts b/src/api/objectcreator.test.ts
+--- a/src/api/objectcreator.test.ts
++++ b/src/api/objectcreator.test.ts
+@@ -69,8 +69,8 @@
+     async transport => {
+       const { http, request } = setup()
+       await createObject(http, { ...options, transport })
+-      expect(request).toHaveBeenCalledTimes(1)
+-      const [url, config] = request.mock.calls[0]
++      expect(request).toHaveBeenCalledTimes(2)
++      const [url, config] = request.mock.calls[1]
+       expect(url).toBe("/sap/bc/adt/ddic/tabletypes")
+       expect(config).toMatchObject({
+         method: "POST",
+@@ -92,8 +92,9 @@
+   test("propagates a rejected creation request", async () => {
+     const { http, request } = setup()
+     const error = new Error("Creation rejected")
++    request.mockResolvedValueOnce({ status: 200, statusText: "OK", headers: {}, body: "" })
+     request.mockRejectedValue(error)
+     await expect(createObject(http, { ...options })).rejects.toBe(error)
+-    expect(request).toHaveBeenCalledTimes(1)
++    expect(request).toHaveBeenCalledTimes(2)
+   })
+ })
+diff --git a/src/api/creationmedia.test.ts b/src/api/creationmedia.test.ts
+new file mode 100644
+--- /dev/null
++++ b/src/api/creationmedia.test.ts
+@@ -0,0 +1,48 @@
++import { AdtHTTP } from "../AdtHTTP"
++import { createObject, NewObjectOptions } from "./objectcreator"
++
++const contracts: [NewObjectOptions["objtype"], string, string][] = [
++  ["DCLS/DL", "acm/dcl/sources", "application/vnd.sap.adt.dclSource+xml"],
++  ["INTF/OI", "oo/interfaces", "application/vnd.sap.adt.oo.interfaces.v5+xml"],
++  ["TABL/DT", "ddic/tables", "application/vnd.sap.adt.tables.v2+xml"],
++  ["TABL/DS", "ddic/structures", "application/vnd.sap.adt.structures.v2+xml"],
++  ["DTEL/DE", "ddic/dataelements", "application/vnd.sap.adt.dataelements.v2+xml"],
++  ["DOMA/DD", "ddic/domains", "application/vnd.sap.adt.domains.v2+xml"],
++  ["TTYP/DA", "ddic/tabletypes", "application/vnd.sap.adt.tabletype.v1+xml"],
++  ["DDLX/EX", "ddic/ddlx/sources", "application/vnd.sap.adt.ddic.ddlx.v1+xml"],
++  ["SRVD/SRV", "ddic/srvd/sources", "application/vnd.sap.adt.ddic.srvd.v1+xml"],
++  ["AUTH", "aps/iam/auth", "application/vnd.sap.adt.blues.v1+xml"],
++  ["SUSO/B", "aps/iam/suso", "application/vnd.sap.adt.blues.v1+xml"],
++  ["DEVC/K", "packages", "application/vnd.sap.adt.packages.v2+xml"],
++  ["FUGR/F", "functions/groups", "application/vnd.sap.adt.functions.groups.v3+xml"]
++]
++
++const response = (body: string) => ({ status: 200, statusText: "OK", headers: {}, body })
++function setup(path: string, accepts: string[], other = "") {
++  const http = new AdtHTTP("https://example.invalid", "DEV_USER", "unused", "001", "EN")
++  const discovery = `<app:service><app:workspace>${other}<app:collection href="${path}">${accepts.map(value => `<app:accept>${value}</app:accept>`).join("")}</app:collection></app:workspace></app:service>`
++  const request = jest.spyOn(http, "request").mockImplementation(async url => response(url === "/sap/bc/adt/discovery" ? discovery : ""))
++  return { http, request }
++}
++
++describe("collection creation media negotiation", () => {
++  test.each(contracts)("selects the advertised XML representation for %s", async (objtype, path, media) => {
++    const { http, request } = setup("/sap/bc/adt/" + path, ["text/html", media, "application/json"])
++    const options = { objtype, name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "/sap/bc/adt/packages/zpackage", description: "Example", swcomp: "HOME", transportLayer: "DEV", packagetype: "development" } as NewObjectOptions
++    await createObject(http, options)
++    expect(request.mock.calls[1]).toEqual(["/sap/bc/adt/" + path, expect.objectContaining({ headers: { "Content-Type": media }, method: "POST" })])
++  })
++
++  test("does not take an XML format from an unrelated collection", async () => {
++    const { http, request } = setup("/sap/bc/adt/oo/interfaces", ["application/vnd.sap.adt.oo.interfaces.v5+xml"])
++    await createObject(http, { objtype: "DCLS/DL", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example" })
++    expect(request.mock.calls[1][1]!.headers).toEqual({ "Content-Type": "application/*" })
++  })
++
++  test("combines duplicate collections and accepts an absolute href with a trailing slash", async () => {
++    const media = "application/vnd.sap.adt.dclSource+xml"
++    const { http, request } = setup("https://example.invalid/sap/bc/adt/acm/dcl/sources/", [media], '<app:collection href="/sap/bc/adt/acm/dcl/sources"/>')
++    await createObject(http, { objtype: "DCLS/DL", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example" })
++    expect(request.mock.calls[1][1]!.headers).toEqual({ "Content-Type": media })
++  })
++})

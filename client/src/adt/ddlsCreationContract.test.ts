@@ -21,7 +21,7 @@ describe("packaged API DDLS creation contract", () => {
       transport: "DEVK900123"
     })
 
-    expect(request).toHaveBeenCalledExactlyOnceWith(
+    expect(request).toHaveBeenCalledWith(
       "/sap/bc/adt/ddic/ddl/sources",
       expect.objectContaining({
         method: "POST",
@@ -30,7 +30,8 @@ describe("packaged API DDLS creation contract", () => {
         body: expect.stringContaining("<ddl:ddlSource")
       })
     )
-    const body = request.mock.calls[0][1]!.body!
+    expect(request).toHaveBeenCalledTimes(2)
+    const body = request.mock.calls[1][1]!.body!
     expect(body).toContain('adtcore:type="DDLS/DF"')
     expect(body).toContain('<adtcore:packageRef adtcore:name="ZEXAMPLE"/>')
     expect(body).not.toContain("class:")

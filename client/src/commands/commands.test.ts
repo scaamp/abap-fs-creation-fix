@@ -368,6 +368,60 @@ describe("disconnectAdtServer", () => {
 })
 
 describe("createAdtObjectProgrammatically", () => {
+  test("uses the MCP name as a function group include suffix", async () => {
+    const creator = {
+      askInput: vi.fn(),
+      createObject: vi.fn(async () => {
+        expect(await creator.askInput("suffix", true, "")).toBe("F01")
+        return undefined
+      })
+    }
+    vi.mocked(__$mock_adt_operations_AdtObjectCreator.AdtObjectCreator).mockImplementationOnce(
+      function () {
+        return creator as any
+      }
+    )
+    await AdtCommands.createAdtObjectProgrammatically(
+      "FUGR/I",
+      "f01",
+      "Example",
+      "ZPACKAGE",
+      "ZGROUP",
+      "dev100"
+    )
+    expect(creator.createObject).toHaveBeenCalledOnce()
+  })
+
+  test("uses explicit package options without displaying a package selection", async () => {
+    const creator = {
+      getPackageOptions: vi.fn(),
+      createObject: vi.fn(async () => {
+        expect(await creator.getPackageOptions()).toEqual({
+          swcomp: "HOME",
+          packagetype: "development",
+          transportLayer: ""
+        })
+        return undefined
+      })
+    }
+    vi.mocked(__$mock_adt_operations_AdtObjectCreator.AdtObjectCreator).mockImplementationOnce(
+      function () {
+        return creator as any
+      }
+    )
+    await AdtCommands.createAdtObjectProgrammatically(
+      "DEVC/K",
+      "ZEXAMPLE",
+      "Example",
+      "ZPARENT",
+      undefined,
+      "dev100",
+      { softwareComponent: "HOME", packageType: "development", transportLayer: "" }
+    )
+    expect(creator.createObject).toHaveBeenCalledOnce()
+    expect(mockWindow.showQuickPick).not.toHaveBeenCalled()
+  })
+
   test.each(["ui", "programmatic"])("returns the transport selected through %s", async mode => {
     const selection = { cancelled: false, transport: "DEVK900123" }
     vi.mocked(selectTransport).mockResolvedValue(selection)

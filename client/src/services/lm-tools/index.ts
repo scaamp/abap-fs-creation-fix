@@ -59,6 +59,7 @@ import { registerAnalyzeAnstEnhancementsTool } from "./analyzeAnstEnhancementsTo
 import { WebviewManager } from "../webviewManager"
 import { registerHeartbeatTool, initializeHeartbeatService } from "../heartbeat"
 import { registerAdtDiscoveryTool } from "./adtDiscoveryTool"
+import { registerCreationDiagnosticsTool } from "./creationDiagnosticsTool"
 import { registerRelationAnalysisTool } from "./relationAnalysisTool"
 import { registerRepositoryWorkflowTools } from "./repositoryWorkflowTools"
 import { registerObjectTransportStatusTool } from "./objectTransportStatusTool"
@@ -164,6 +165,7 @@ export async function registerAllTools(context: vscode.ExtensionContext): Promis
 
   // 18. ADT Discovery Tool
   registerAdtDiscoveryTool(context)
+  registerCreationDiagnosticsTool(context)
 
   // 19. Object Relations Tool
   registerRelationAnalysisTool(context)

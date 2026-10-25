@@ -1,0 +1,55 @@
+diff --git a/src/api/objectcreator.ts b/src/api/objectcreator.ts
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -170,8 +170,12 @@
+   value ? `<${key}>${encodeEntity(value)}</${key}>}` : `<${key}/>`
+ const xmlAttribute = (value: string, key: string) =>
+   value ? `${key}="${encodeEntity(value)}"` : ``
++// RESPONSIBL (AS4USER) ma 12 znaków. Dłuższy alias logowania nie jest
++// użytkownikiem repozytorium; pominięcie atrybutu pozwala SAP użyć sy-uname.
++const responsibleAttribute = (owner = "") =>
++  xmlAttribute(owner.trim() && owner.length <= 12 ? owner : "", "adtcore:responsible")
+ function createBodyPackage(options: NewPackageOptions) {
+-  const responsible = `adtcore:responsible="${options.responsible}"`
++  const responsible = responsibleAttribute(options.responsible)
+   const compname = xmlAttribute(options.swcomp, `pak:name`)
+   const description = xmlAttribute(options.description, "adtcore:description")
+   const superp = xmlAttribute(options.parentName, "adtcore:name")
+@@ -214,12 +218,7 @@
+   type: CreatableType,
+   body = ""
+ ) {
+-  // DDLS: RESPONSIBL ma 12 znaków; dłuższy login nie mieści się w kontrakcie.
+-  // Pominięcie opcjonalnego atrybutu pozostawia wybór kontekstowi backendu.
+-  const owner = options.responsible || ""
+-  const responsible = type.typeId === "DDLS/DF"
+-    ? xmlAttribute(owner.trim() && owner.length <= 12 ? owner : "", "adtcore:responsible")
+-    : `adtcore:responsible="${options.responsible}"`
++  const responsible = responsibleAttribute(options.responsible)
+   const language = options.language || "EN"
+   const masterLanguage = options.masterLanguage || language
+   const masterSystem = options.masterSystem || ""
+diff --git a/src/api/creationowner.test.ts b/src/api/creationowner.test.ts
+new file mode 100644
+--- /dev/null
++++ b/src/api/creationowner.test.ts
+@@ -0,0 +1,19 @@
++import { AdtHTTP } from "../AdtHTTP"
++import { createObject, CreatableTypes, NewObjectOptions } from "./objectcreator"
++import { fullParse } from "../utilities"
++
++describe("repository owner contract", () => {
++  const types = [...CreatableTypes.keys()].filter(type => !["FUGR/FF", "FUGR/I"].includes(type))
++  test.each(types)("does not serialize an overlong login alias for %s", async objtype => {
++    const http = new AdtHTTP("https://example.invalid", "alias@example.invalid", "unused", "001", "EN")
++    const request = jest.spyOn(http, "request").mockResolvedValue({ status: 201, statusText: "Created", body: "", headers: {} })
++    await createObject(http, { objtype, name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example", swcomp: "HOME", transportLayer: "DEV", packagetype: "development", service: "ZSERVICE", bindingtype: "ODATA", category: "1" } as NewObjectOptions)
++    expect(request.mock.calls[1][1]!.body).not.toContain("adtcore:responsible=")
++  })
++  test.each(["DEV_USER", "USER12345678", "A@B", 'A&B"C'])("preserves a valid explicit owner %s", async responsible => {
++    const http = new AdtHTTP("https://example.invalid", "alias@example.invalid", "unused", "001", "EN")
++    const request = jest.spyOn(http, "request").mockResolvedValue({ status: 201, statusText: "Created", body: "", headers: {} })
++    await createObject(http, { objtype: "DCLS/DL", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example", responsible })
++    expect(fullParse(request.mock.calls[1][1]!.body!)["dcl:dclSource"]["@_adtcore:responsible"]).toBe(responsible.toUpperCase())
++  })
++})

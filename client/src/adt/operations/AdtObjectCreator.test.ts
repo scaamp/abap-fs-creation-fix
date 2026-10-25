@@ -85,7 +85,13 @@ vi.mock("fp-ts/lib/TaskEither", () => ({
   map: vi.fn()
 }))
 
-import { AdtObjectCreator, selectObjectType, PACKAGE, TMPPACKAGE } from "./AdtObjectCreator"
+import {
+  AdtObjectCreator,
+  selectObjectType,
+  PACKAGE,
+  TMPPACKAGE,
+  packageCreationContext
+} from "./AdtObjectCreator"
 import * as __$mock_services_funMessenger from "../../services/funMessenger"
 import * as __$mock_abap_adt_api from "abap-adt-api"
 import * as __$mock_abapfs from "abapfs"
@@ -97,6 +103,20 @@ import * as __$mock_abapobject from "abapobject"
 import type { Mock } from "vitest"
 
 describe("constants", () => {
+  test.each(["true", "false"])("inherits explicit package recordChanges=%s", recordChanges => {
+    expect(
+      packageCreationContext(
+        `<pak:package><pak:attributes pak:recordChanges="${recordChanges}" pak:languageVersion="5"/></pak:package>`
+      )
+    ).toEqual({ recordChanges: recordChanges === "true", languageVersion: "5" })
+  })
+  test("does not invent modern package attributes for a legacy response", () => {
+    expect(
+      packageCreationContext(
+        '<pak:package><pak:attributes pak:packageType="development"/></pak:package>'
+      )
+    ).toEqual({})
+  })
   it("PACKAGE is DEVC/K", () => {
     expect(PACKAGE).toBe("DEVC/K")
   })

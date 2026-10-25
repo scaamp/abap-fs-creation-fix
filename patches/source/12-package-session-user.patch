@@ -1,0 +1,52 @@
+diff --git a/src/api/objectcreator.ts b/src/api/objectcreator.ts
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -391,6 +391,17 @@
+     language: classV4 ? options.language || h.language || "EN" : options.language,
+     responsible: classV4 ? options.responsible : (options.responsible || h.username).toUpperCase()
+   }
++  // Pakiety wymagają jawnego właściciela. Pobierz użytkownika bieżącej sesji,
++  // nigdy właściciela superpakietu ani alias e-mail spoza kontraktu AS4USER.
++  if (options.objtype === "DEVC/K" && (!context.responsible?.trim() || context.responsible.length > 12)) {
++    const response = await h.request("/sap/bc/adt/core/http/systeminformation", {
++      headers: { Accept: "application/vnd.sap.adt.core.http.systeminformation.v1+json" }
++    })
++    const info = JSON.parse(response.body || "{}") as { userName?: unknown }
++    if (typeof info.userName !== "string" || !info.userName.trim() || info.userName.length > 12)
++      throw adtException("Package creation requires a valid backend user from systeminformation")
++    context.responsible = info.userName.toUpperCase()
++  }
+   const body = classV4 ? createBodyClassV4(context, ot) : createBody(context, ot)
+   const qs: any = {}
+   if (options.transport) qs.corrNr = options.transport
+diff --git a/src/api/creationowner.test.ts b/src/api/creationowner.test.ts
+--- a/src/api/creationowner.test.ts
++++ b/src/api/creationowner.test.ts
+@@ -3,7 +3,7 @@
+ import { fullParse } from "../utilities"
+ 
+ describe("repository owner contract", () => {
+-  const types = [...CreatableTypes.keys()].filter(type => !["FUGR/FF", "FUGR/I"].includes(type))
++  const types = [...CreatableTypes.keys()].filter(type => !["FUGR/FF", "FUGR/I", "DEVC/K"].includes(type))
+   test.each(types)("does not serialize an overlong login alias for %s", async objtype => {
+     const http = new AdtHTTP("https://example.invalid", "alias@example.invalid", "unused", "001", "EN")
+     const request = jest.spyOn(http, "request").mockResolvedValue({ status: 201, statusText: "Created", body: "", headers: {} })
+@@ -16,4 +16,18 @@
+     await createObject(http, { objtype: "DCLS/DL", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example", responsible })
+     expect(fullParse(request.mock.calls[1][1]!.body!)["dcl:dclSource"]["@_adtcore:responsible"]).toBe(responsible.toUpperCase())
+   })
++  test("resolves a package owner from the authenticated backend instead of a login alias", async () => {
++    const http = new AdtHTTP("https://example.invalid", "alias@example.invalid", "unused", "001", "EN")
++    const request = jest.spyOn(http, "request").mockImplementation(async url => ({ status: 200, statusText: "OK", headers: {}, body: url.endsWith("/systeminformation") ? JSON.stringify({ userName: "BACKEND_USER", systemID: "DEV" }) : "" }))
++    await createObject(http, { objtype: "DEVC/K", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example", swcomp: "HOME", transportLayer: "DEV", packagetype: "development" } as NewObjectOptions)
++    expect(request.mock.calls[2][1]!.body).toContain('adtcore:responsible="BACKEND_USER"')
++    expect(request.mock.calls[1][1]!.headers).toEqual({ Accept: "application/vnd.sap.adt.core.http.systeminformation.v1+json" })
++    expect(request.mock.calls[2][1]!.body).not.toContain("alias@example.invalid")
++  })
++  test.each([undefined, "", "alias@example.invalid"])("does not POST a package with an invalid resolved user %s", async userName => {
++    const http = new AdtHTTP("https://example.invalid", "alias@example.invalid", "unused", "001", "EN")
++    const request = jest.spyOn(http, "request").mockImplementation(async url => ({ status: 200, statusText: "OK", headers: {}, body: url.endsWith("/systeminformation") ? JSON.stringify({ userName }) : "" }))
++    await expect(createObject(http, { objtype: "DEVC/K", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example", swcomp: "HOME", transportLayer: "DEV", packagetype: "development" } as NewObjectOptions)).rejects.toThrow("valid backend user")
++    expect(request.mock.calls.every(([, options]) => options?.method !== "POST")).toBe(true)
++  })
+ })

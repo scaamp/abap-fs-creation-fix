@@ -648,7 +648,7 @@ export class AdtCommands {
         uppercase: boolean = true,
         value = ""
       ): Promise<string> => {
-        if (prompt.toLowerCase().includes("name")) {
+        if (prompt.toLowerCase().includes("name") || prompt.toLowerCase() === "suffix") {
           const result = uppercase ? name.toUpperCase() : name
           return result
         } else if (prompt.toLowerCase().includes("description")) {
@@ -707,6 +707,26 @@ export class AdtCommands {
           if (isBindingOptions(opt)) return opt
           throw new Error("Invalid service binding options")
         }
+      }
+
+      if (objectType === "DEVC/K" && additionalOptions?.softwareComponent) {
+        const { softwareComponent, packageType, transportLayer } = additionalOptions
+        if (!packageType || transportLayer === undefined) {
+          return {
+            success: false,
+            error: "MISSING_PACKAGE_OPTIONS",
+            message:
+              "Packages require softwareComponent, packageType, and transportLayer (which may be blank).",
+            objectName: name,
+            objectType
+          }
+        }
+        // Użyj jawnych parametrów MCP zamiast blokować narzędzie ukrytym wyborem UI.
+        creator["getPackageOptions"] = async () => ({
+          swcomp: softwareComponent,
+          packagetype: packageType,
+          transportLayer
+        })
       }
 
       // 5. Capture the chosen transport in both UI and non-interactive flows.

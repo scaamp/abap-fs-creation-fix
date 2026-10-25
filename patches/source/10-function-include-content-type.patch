@@ -1,0 +1,41 @@
+diff --git a/src/api/objectcreator.ts b/src/api/objectcreator.ts
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -55,6 +55,12 @@
+ const DDLS_XML = "application/vnd.sap.adt.ddlSource+xml"
+ // CL_DDLA_WB_ACCESS udostępnia ten format także bez app:accept w discovery.
+ const DDLA_XML = "application/vnd.sap.adt.ddic.ddla.v1+xml"
++const creationFallbacks: Partial<Record<CreatableTypeIds, string>> = {
++  "DDLS/DF": DDLS_XML,
++  "DDLA/ADF": DDLA_XML,
++  // Format wskazany przez serwer dla kolekcji includes danej grupy funkcyjnej.
++  "FUGR/I": "application/vnd.sap.adt.functions.fincludes.v2+xml"
++}
+ 
+ // Wybierz XML zadeklarowany dla konkretnej kolekcji, nigdy MIME wyliczony z URL.
+ // Klasy mają osobny serializer V4. Brak deklaracji zachowuje starszą ścieżkę.
+@@ -368,8 +374,7 @@
+       ot.creationPath,
+       encodeURIComponent(options.parentName.toLowerCase())
+     )
+-  const contentType = await creationMediaType(h, url) ||
+-    (options.objtype === "DDLS/DF" ? DDLS_XML : options.objtype === "DDLA/ADF" ? DDLA_XML : "application/*")
++  const contentType = await creationMediaType(h, url) || creationFallbacks[options.objtype] || "application/*"
+   const classV4 = options.objtype === "CLAS/OC" && contentType === CLASS_V4
+   const context = {
+     ...options,
+diff --git a/src/api/creationmedia.test.ts b/src/api/creationmedia.test.ts
+--- a/src/api/creationmedia.test.ts
++++ b/src/api/creationmedia.test.ts
+@@ -26,6 +26,11 @@
+ }
+ 
+ describe("collection creation media negotiation", () => {
++  test("uses the function-group include contract for a concrete parent collection", async () => {
++    const { http, request } = setup("/sap/bc/adt/functions/groups", [])
++    await createObject(http, { objtype: "FUGR/I", name: "LZGROUPF01", parentName: "ZGROUP", parentPath: "/sap/bc/adt/functions/groups/zgroup", description: "Example" })
++    expect(request.mock.calls[1]).toEqual(["/sap/bc/adt/functions/groups/zgroup/includes", expect.objectContaining({ headers: { "Content-Type": "application/vnd.sap.adt.functions.fincludes.v2+xml" }, body: expect.stringContaining("<finclude:abapFunctionGroupInclude") })])
++  })
+   test("uses the DDLA properties contract when discovery omits app:accept", async () => {
+     const { http, request } = setup("/sap/bc/adt/ddic/ddla/sources", [])
+     await createObject(http, { objtype: "DDLA/ADF", name: "ZEXAMPLE", parentName: "ZPACKAGE", parentPath: "", description: "Example" })

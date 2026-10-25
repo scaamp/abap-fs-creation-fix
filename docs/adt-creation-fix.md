@@ -6,7 +6,7 @@ This repository distributes unofficial patched builds based on ABAP FS 2.12.0. I
 
 Download the `.vsix` and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/scaamp/abap-fs-creation-fix/releases/latest).
 
-The current [candidate `.3`](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.2-adt-creation-fix.3-candidate) adds a DDLS owner correction, connection-log routing and truthful transport reporting. The tester reported that header-only candidate `.2` still fails DDLS deserialization. Candidate `.3` has not yet passed live DDLS creation. Stable `.1` fixes classes only.
+The current [creation fix 4](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.3-adt-creation-fix.4) was tested across all 23 registered creation types: 20 were created and independently verified; three were denied by backend permissions. See the [result matrix](adt-creation-matrix.md). Earlier candidates are retained as historical releases.
 
 1. Open the intended VS Code profile.
 2. Open Extensions (`Ctrl+Shift+X`), choose `...` → **Install from VSIX...**, and select the downloaded file.
@@ -14,13 +14,21 @@ The current [candidate `.3`](https://github.com/scaamp/abap-fs-creation-fix/rele
 4. Configure your SAP connection on a new workstation. The VSIX contains no SAP connection configuration.
 5. Restart/reconnect your MCP client and confirm which VS Code instance serves its configured endpoint.
 
-The extension keeps the upstream identifier `murbani.vscode-abap-remote-fs` so that it replaces the existing extension in the chosen profile. The current DDLS candidate uses version `2.12.2` and display name **ABAP remote filesystem (ADT creation fix 3 candidate)**. The earlier class-only release used `2.12.0`. If necessary, install the candidate explicitly:
+The extension keeps the upstream identifier `murbani.vscode-abap-remote-fs` so that it replaces the existing extension in the chosen profile. This build uses version `2.12.3` and display name **ABAP remote filesystem (ADT creation fix 4)**. The earlier class-only release used `2.12.0`. If necessary, install it explicitly:
 
 ```powershell
-code --install-extension .\abap-fs-2.12.2-adt-creation-fix.3-candidate.vsix --force
+code --install-extension .\abap-fs-2.12.3-adt-creation-fix.4.vsix --force
 ```
 
 For a named profile, add `--profile "Profile name"`. The VSIX includes the patched API runtime: no local source checkout, Node.js or pnpm is needed on the destination workstation. Its declared VS Code requirement is `^1.105.0`; the existing dependencies `larshp.vscode-abap` and `hudakf.cds` are still required. An official extension update can replace this build.
+
+## Current release: creation fix 4
+
+Extension version **2.12.3**, release `v2.12.3-adt-creation-fix.4`, extends the earlier class/CDS fixes to the complete registered creation catalogue. See the [23-type audit](adt-creation-matrix.md) for exact live results, request differences, verified backend authorization denials and the distinction between creation, activation and publication. The historical candidate sections below describe their original scope, not the current release.
+
+Media-type negotiation and XML/owner changes are separate source patches. Packages resolve a required backend owner from the current authenticated session and inherit their parent package settings. MCP package options, function include suffixes and binding categories are retained. The new read-only `abapfs_get_creation_diagnostics` tool identifies the running version/process mode and exposes sanitized creation traces; use it to avoid routing MCP to a different VS Code window.
+
+No workstation profile, connection credentials or private SAP identifiers are distributed in the VSIX. Other SAP versions still require their own verification; backend authorization limits are not bypassed.
 
 ## What changed
 
@@ -38,7 +46,7 @@ The original library sends object creation requests with `Content-Type: applicat
 
 Discovery is read before the class POST. Systems that do not advertise class V4 retain the legacy representation. A discovery failure stops creation. The creation function does not retry an unsuccessful POST. Explicit backend owner/master system values remain supported; when omitted, their handling belongs to the authenticated backend. The verification scope below does not establish every backend's behavior for those omitted fields.
 
-Only the class XML contract changes. The DDLS candidate changes its HTTP Content-Type separately, retaining its own XML seed and all other object contracts.
+The initial class fix changed the class XML contract. The historical DDLS candidates below were scoped separately; creation fix 4 extends negotiation and common-owner handling as described in the audit.
 
 ### DDLS candidate `.2`: header only (tester reported deserialization failure)
 

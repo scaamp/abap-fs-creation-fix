@@ -1,0 +1,66 @@
+diff --git a/src/api/objectcreator.ts b/src/api/objectcreator.ts
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -97,6 +97,8 @@
+   swcomp: string
+   transportLayer: string
+   packagetype: PackageTypes
++  recordChanges?: boolean
++  languageVersion?: string
+ }
+ export interface PackageValidateOptions
+   extends PackageSpecificData,
+@@ -194,7 +196,7 @@
+ xmlns:adtcore="http://www.sap.com/adt/core" ${description}
+ ${pkgname} adtcore:type="DEVC/K" adtcore:version="active" ${responsible}>
+ <adtcore:packageRef ${pkgname}/>
+-<pak:attributes ${pkgtype}/>
++<pak:attributes ${pkgtype}${options.recordChanges === undefined ? "" : ` pak:recordChanges="${options.recordChanges}"`}${options.languageVersion ? ` pak:languageVersion="${encodeEntity(options.languageVersion)}"` : ""}/>
+ <pak:superPackage ${superp}/>
+ <pak:applicationComponent/>
+ <pak:transport>
+@@ -343,9 +345,17 @@
+     throw adtException(
+       `Validation not supported for object ${ot} ${options.objname}`
+     )
++  // Kontrakt walidacji pakietu używa transportlayer (małe litery),
++  // niezależnie od nazwy transportLayer w publicznych opcjach biblioteki.
++  const qs = options.objtype === "DEVC/K"
++    ? (() => {
++        const { transportLayer, languageVersion, ...rest } = options
++        return { ...rest, transportlayer: transportLayer }
++      })()
++    : options
+   const response = await h.request("/sap/bc/adt/" + ot.validationPath, {
+     method: "POST",
+-    qs: options
++    qs
+   })
+   const raw = fullParse(response.body)
+   const results = xmlArray(raw, "asx:abap", "asx:values", "DATA") as any[]
+diff --git a/src/api/creationcontext.test.ts b/src/api/creationcontext.test.ts
+--- a/src/api/creationcontext.test.ts
++++ b/src/api/creationcontext.test.ts
+@@ -1,5 +1,5 @@
+ import { AdtHTTP } from "../AdtHTTP"
+-import { createObject, NewPackageOptions, NewBindingOptions } from "./objectcreator"
++import { createObject, NewPackageOptions, NewBindingOptions, validateNewObject } from "./objectcreator"
+ import { fullParse } from "../utilities"
+ 
+ const common = { name: 'ZEXAMPLE', parentName: 'ZPARENT', parentPath: '', description: 'Example' }
+@@ -22,3 +22,15 @@
+   const root = fullParse(request.mock.calls[1][1]!.body!)["srvb:serviceBinding"]
+   expect(String(root["srvb:binding"]["@_srvb:category"])).toBe(category)
+ })
++test.each([true, false])("package retains recordChanges=%s in XML and validation", async recordChanges => {
++  const { http, request } = setup()
++  await createObject(http, { ...common, objtype: "DEVC/K", swcomp: "HOME", packagetype: "development", transportLayer: "DEV", recordChanges, languageVersion: "5" } as NewPackageOptions)
++  const root = fullParse(request.mock.calls[1][1]!.body!)["pak:package"]
++  expect(String(root["pak:attributes"]["@_pak:recordChanges"])).toBe(String(recordChanges))
++  expect(String(root["pak:attributes"]["@_pak:languageVersion"])).toBe("5")
++  const validation = { objtype: "DEVC/K" as const, objname: "ZEXAMPLE", description: "Example", packagename: "ZPARENT", swcomp: "HOME", packagetype: "development" as const, transportLayer: "DEV", recordChanges, languageVersion: "5" }
++  request.mockResolvedValueOnce({ status: 200, statusText: "OK", body: "<asx:abap><asx:values><DATA><CHECK_RESULT>X</CHECK_RESULT></DATA></asx:values></asx:abap>", headers: {} })
++  await validateNewObject(http, validation)
++  const { transportLayer, languageVersion, ...rest } = validation
++  expect(request).toHaveBeenLastCalledWith("/sap/bc/adt/packages/validation", { method: "POST", qs: { ...rest, transportlayer: transportLayer } })
++})

@@ -11,41 +11,95 @@ index b94f42c2e5adb892ac307a98555a70725217197f..cad6df71dfd12994281b1667a1eb8a84
  };
  exports.fromResponse = fromResponse;
  const fromError = (error) => {
+diff --git a/build/api/objectcreator.d.ts b/build/api/objectcreator.d.ts
+index 89333f5e388380ad62ae79e9e840097b4efe8c83..def9ea383ceabc209718fb55252bd74fd3e48223 100644
+--- a/build/api/objectcreator.d.ts
++++ b/build/api/objectcreator.d.ts
+@@ -32,6 +32,8 @@ export interface PackageSpecificData {
+     swcomp: string;
+     transportLayer: string;
+     packagetype: PackageTypes;
++    recordChanges?: boolean;
++    languageVersion?: string;
+ }
+ export interface PackageValidateOptions extends PackageSpecificData, BaseValidateOptions {
+     objtype: PackageTypeId;
 diff --git a/build/api/objectcreator.js b/build/api/objectcreator.js
-index 7e28ddf0936c72d1deaee06bed952845adedd728..b3f33ce9f88dad2b11529e2289a6b8d1eb4a9fa1 100644
+index 7e28ddf0936c72d1deaee06bed952845adedd728..6e553ba285e5b81357821ea8b2bdd7c860741149 100644
 --- a/build/api/objectcreator.js
 +++ b/build/api/objectcreator.js
-@@ -18,6 +18,15 @@ const utilities_1 = require("../utilities");
+@@ -18,6 +18,31 @@ const utilities_1 = require("../utilities");
  // encodeURIComponent output, so it can never contain the `$` replacement
  // patterns of String.replace.
  const formatCreationPath = (path, parent) => path.replace("%s", parent);
 +const CLASS_V4 = "application/vnd.sap.adt.oo.classes.v4+xml";
 +const DDLS_XML = "application/vnd.sap.adt.ddlSource+xml";
-+// Wybierz V4 tylko z deklaracji kolekcji; nie ponawiaj odrzuconego POST.
-+async function supportsClassV4(h) {
++// CL_DDLA_WB_ACCESS udostępnia ten format także bez app:accept w discovery.
++const DDLA_XML = "application/vnd.sap.adt.ddic.ddla.v1+xml";
++const creationFallbacks = {
++    "DDLS/DF": DDLS_XML,
++    "DDLA/ADF": DDLA_XML,
++    // Format wskazany przez serwer dla kolekcji includes danej grupy funkcyjnej.
++    "FUGR/I": "application/vnd.sap.adt.functions.fincludes.v2+xml"
++};
++// Wybierz XML zadeklarowany dla konkretnej kolekcji, nigdy MIME wyliczony z URL.
++// Klasy mają osobny serializer V4. Brak deklaracji zachowuje starszą ścieżkę.
++async function creationMediaType(h, path) {
 +    const response = await h.request("/sap/bc/adt/discovery");
-+    const discovery = (0, utilities_1.fullParse)(response.body);
-+    return (0, utilities_1.xmlArray)(discovery, "app:service", "app:workspace").some(workspace => (0, utilities_1.xmlArray)(workspace, "app:collection").some(collection => collection["@_href"] === "/sap/bc/adt/oo/classes" &&
-+        (0, utilities_1.xmlArray)(collection, "app:accept").includes(CLASS_V4)));
++    const discovery = (0, utilities_1.fullParse)(response.body || "");
++    const accepted = (0, utilities_1.xmlArray)(discovery, "app:service", "app:workspace").flatMap(workspace => (0, utilities_1.xmlArray)(workspace, "app:collection").flatMap(collection => {
++        var _a;
++        return ((_a = collection["@_href"]) === null || _a === void 0 ? void 0 : _a.replace(/^https?:\/\/[^/]+/, "").replace(/\/$/, "")) === path
++            ? (0, utilities_1.xmlArray)(collection, "app:accept").filter((value) => typeof value === "string")
++            : [];
++    }));
++    if (path === "/sap/bc/adt/oo/classes")
++        return accepted.includes(CLASS_V4) ? CLASS_V4 : undefined;
++    return accepted.map(value => value.split(";", 1)[0].trim()).find(value => /^application\/vnd\.sap\.adt\.[A-Za-z0-9_.+-]+\+xml$/.test(value));
 +}
  exports.BindinTypes = [
      { description: "Odata V2 - Web API", bindingtype: "ODATA", category: "0" },
      { description: "Odata V2 - UI", bindingtype: "ODATA", category: "1" }
-@@ -70,7 +79,12 @@ function createBodyFunc(options, type) {
+@@ -32,8 +57,11 @@ const isBindingOptions = (o) => (o === null || o === void 0 ? void 0 : o.objtype
+ exports.isBindingOptions = isBindingOptions;
+ const xmlEntry = (value, key) => value ? `<${key}>${(0, utilities_1.encodeEntity)(value)}</${key}>}` : `<${key}/>`;
+ const xmlAttribute = (value, key) => value ? `${key}="${(0, utilities_1.encodeEntity)(value)}"` : ``;
++// RESPONSIBL (AS4USER) ma 12 znaków. Dłuższy alias logowania nie jest
++// użytkownikiem repozytorium; pominięcie atrybutu pozwala SAP użyć sy-uname.
++const responsibleAttribute = (owner = "") => xmlAttribute(owner.trim() && owner.length <= 12 ? owner : "", "adtcore:responsible");
+ function createBodyPackage(options) {
+-    const responsible = `adtcore:responsible="${options.responsible}"`;
++    const responsible = responsibleAttribute(options.responsible);
+     const compname = xmlAttribute(options.swcomp, `pak:name`);
+     const description = xmlAttribute(options.description, "adtcore:description");
+     const superp = xmlAttribute(options.parentName, "adtcore:name");
+@@ -43,8 +71,8 @@ function createBodyPackage(options) {
+ <pak:package xmlns:pak="http://www.sap.com/adt/packages"
+ xmlns:adtcore="http://www.sap.com/adt/core" ${description}
+ ${pkgname} adtcore:type="DEVC/K" adtcore:version="active" ${responsible}>
+-<adtcore:packageRef  adtcore:name="YMU_RAP"/>
+-<pak:attributes ${pkgtype}/>
++<adtcore:packageRef ${pkgname}/>
++<pak:attributes ${pkgtype}${options.recordChanges === undefined ? "" : ` pak:recordChanges="${options.recordChanges}"`}${options.languageVersion ? ` pak:languageVersion="${(0, utilities_1.encodeEntity)(options.languageVersion)}"` : ""}/>
+ <pak:superPackage ${superp}/>
+ <pak:applicationComponent/>
+ <pak:transport>
+@@ -70,7 +98,7 @@ function createBodyFunc(options, type) {
  </${type.rootName}>`;
  }
  function createBodySimple(options, type, body = "") {
 -    const responsible = `adtcore:responsible="${options.responsible}"`;
-+    // DDLS: RESPONSIBL ma 12 znaków; dłuższy login nie mieści się w kontrakcie.
-+    // Pominięcie opcjonalnego atrybutu pozostawia wybór kontekstowi backendu.
-+    const owner = options.responsible || "";
-+    const responsible = type.typeId === "DDLS/DF"
-+        ? xmlAttribute(owner.trim() && owner.length <= 12 ? owner : "", "adtcore:responsible")
-+        : `adtcore:responsible="${options.responsible}"`;
++    const responsible = responsibleAttribute(options.responsible);
      const language = options.language || "EN";
      const masterLanguage = options.masterLanguage || language;
      const masterSystem = options.masterSystem || "";
-@@ -97,6 +111,26 @@ function createBodyBinding(options, type) {
+@@ -92,11 +120,31 @@ function createBodyBinding(options, type) {
+               <srvb:serviceDefinition adtcore:name="${options.service}"/>
+           </srvb:content>
+       </srvb:services>
+-      <srvb:binding srvb:category="0" srvb:type="${options.bindingtype}" srvb:version="V2">
++      <srvb:binding srvb:category="${options.category}" srvb:type="${options.bindingtype}" srvb:version="V2">
+           <srvb:implementation adtcore:name=""/>
        </srvb:binding>`;
      return createBodySimple(options, type, body);
  }
@@ -72,21 +126,56 @@ index 7e28ddf0936c72d1deaee06bed952845adedd728..b3f33ce9f88dad2b11529e2289a6b8d1
  function createBody(options, type) {
      switch (type.typeId) {
          case "DEVC/K":
-@@ -163,15 +197,22 @@ async function createObject(h, options) {
+@@ -141,9 +189,17 @@ async function validateNewObject(h, options) {
+         throw (0, AdtException_1.adtException)("Unsupported object type");
+     if (!ot.validationPath)
+         throw (0, AdtException_1.adtException)(`Validation not supported for object ${ot} ${options.objname}`);
++    // Kontrakt walidacji pakietu używa transportlayer (małe litery),
++    // niezależnie od nazwy transportLayer w publicznych opcjach biblioteki.
++    const qs = options.objtype === "DEVC/K"
++        ? (() => {
++            const { transportLayer, languageVersion, ...rest } = options;
++            return { ...rest, transportlayer: transportLayer };
++        })()
++        : options;
+     const response = await h.request("/sap/bc/adt/" + ot.validationPath, {
+         method: "POST",
+-        qs: options
++        qs
+     });
+     const raw = (0, utilities_1.fullParse)(response.body);
+     const results = (0, utilities_1.xmlArray)(raw, "asx:abap", "asx:values", "DATA");
+@@ -158,20 +214,38 @@ async function validateNewObject(h, options) {
+     };
+ }
+ async function createObject(h, options) {
++    var _a;
+     const ot = exports.CreatableTypes.get(options.objtype);
+     if (!ot)
          throw (0, AdtException_1.adtException)("Unsupported object type");
      const url = "/sap/bc/adt/" +
          formatCreationPath(ot.creationPath, encodeURIComponent(options.parentName.toLowerCase()));
 -    options.responsible = (options.responsible || h.username).toUpperCase();
 -    const body = createBody(options, ot);
-+    const classV4 = options.objtype === "CLAS/OC" && await supportsClassV4(h);
++    const contentType = await creationMediaType(h, url) || creationFallbacks[options.objtype] || "application/*";
++    const classV4 = options.objtype === "CLAS/OC" && contentType === CLASS_V4;
 +    const context = {
 +        ...options,
 +        language: classV4 ? options.language || h.language || "EN" : options.language,
 +        responsible: classV4 ? options.responsible : (options.responsible || h.username).toUpperCase()
 +    };
++    // Pakiety wymagają jawnego właściciela. Pobierz użytkownika bieżącej sesji,
++    // nigdy właściciela superpakietu ani alias e-mail spoza kontraktu AS4USER.
++    if (options.objtype === "DEVC/K" && (!((_a = context.responsible) === null || _a === void 0 ? void 0 : _a.trim()) || context.responsible.length > 12)) {
++        const response = await h.request("/sap/bc/adt/core/http/systeminformation", {
++            headers: { Accept: "application/vnd.sap.adt.core.http.systeminformation.v1+json" }
++        });
++        const info = JSON.parse(response.body || "{}");
++        if (typeof info.userName !== "string" || !info.userName.trim() || info.userName.length > 12)
++            throw (0, AdtException_1.adtException)("Package creation requires a valid backend user from systeminformation");
++        context.responsible = info.userName.toUpperCase();
++    }
 +    const body = classV4 ? createBodyClassV4(context, ot) : createBody(context, ot);
-+    // DDLS ma osobny kontrakt mediów; zmiana nagłówka nie zmienia jego XML.
-+    const contentType = classV4 ? CLASS_V4 : options.objtype === "DDLS/DF" ? DDLS_XML : "application/*";
      const qs = {};
      if (options.transport)
          qs.corrNr = options.transport;

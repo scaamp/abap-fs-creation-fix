@@ -31,6 +31,22 @@ import { isAbapFolder, isAbapStat, isFolder } from "abapfs"
 import { fromNode } from "abapobject"
 import { pipe } from "fp-ts/lib/pipeable"
 import { bind, chain, map } from "fp-ts/lib/TaskEither"
+import { XMLParser } from "fast-xml-parser"
+
+// Nowe pakiety dziedziczą ustawienia zapisu zmian i języka z rzeczywistego
+// superpakietu; brak pól w starszym ADT zachowuje dotychczasowy kontrakt.
+export function packageCreationContext(xml: string) {
+  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml)
+  const attributes = parsed?.["pak:package"]?.["pak:attributes"]
+  const recordChanges = attributes?.["@_pak:recordChanges"]
+  const languageVersion = attributes?.["@_pak:languageVersion"]
+  return {
+    ...(recordChanges === "true" || recordChanges === "false"
+      ? { recordChanges: recordChanges === "true" }
+      : {}),
+    ...(languageVersion ? { languageVersion: String(languageVersion) } : {})
+  }
+}
 
 export const PACKAGE = "DEVC/K"
 export const TMPPACKAGE = "$TMP"
@@ -201,7 +217,11 @@ export class AdtObjectCreator {
         packagename: objDetails.parentName,
         swcomp: objDetails.swcomp,
         packagetype: objDetails.packagetype,
-        transportLayer: objDetails.transportLayer
+        transportLayer: objDetails.transportLayer,
+        ...(objDetails.recordChanges === undefined
+          ? {}
+          : { recordChanges: objDetails.recordChanges }),
+        ...(objDetails.languageVersion ? { languageVersion: objDetails.languageVersion } : {})
       }
     } else if (isBindingOptions(objDetails)) {
       validateOptions = {
@@ -333,7 +353,10 @@ export class AdtObjectCreator {
       if (!pkgopt) return
       const { swcomp, packagetype, transportLayer } = pkgopt
 
-      const pkoptions = { ...options, swcomp, packagetype, transportLayer }
+      const context = packageCreationContext(
+        await getClient(this.connId).getObjectSource(options.parentPath)
+      )
+      const pkoptions = { ...options, swcomp, packagetype, transportLayer, ...context }
       return {
         devclass,
         options: pkoptions

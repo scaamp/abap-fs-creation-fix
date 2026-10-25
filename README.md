@@ -5,9 +5,9 @@
 >
 > **[Download the ready-to-install VSIX](https://github.com/scaamp/abap-fs-creation-fix/releases/latest)** · **[Changes, installation, MCP setup and rollback](docs/adt-creation-fix.md)**
 >
-> **DDLS test candidate:** [creation fix 3](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.2-adt-creation-fix.3-candidate) adds DDLS owner validation, communication-log connection routing and truthful MCP transport reporting. Header-only candidate `.2` was reported to fail DDLS deserialization. Candidate `.3` is locally tested and still requires live DDLS verification. Stable `.1` fixes classes only; table/data-element creation is not claimed as fixed.
+> **Creation fix 4 (extension 2.12.3):** the [complete creation-type audit](docs/adt-creation-matrix.md) covers all 23 types registered by this extension. It adds per-collection media negotiation, shared owner validation, package-context fixes, MCP input fixes and sanitized diagnostics. Each object keeps its own ADT XML contract. Backend permissions still apply; an HTTP 403 is not a successful creation test.
 >
-> This build fixes class creation on systems advertising ADT class V4 and preserves sanitized HTTP error details. Class creation was verified in an Extension Development Host; successful MCP class creation was reported by the tester. DDLS creation is a separate contract and is not claimed as fixed. This is an independent repository, not an official release or a GitHub fork relationship.
+> This is an independent repository, not an official release or a GitHub fork relationship. Earlier releases and their verification limits remain documented in [PATCH_CHANGELOG.md](PATCH_CHANGELOG.md).
 
 **A VS Code extension that gives AI assistants real, live access to your SAP system — reads actual code, queries live tables, runs tests, debugs, and understands your custom objects.**
 

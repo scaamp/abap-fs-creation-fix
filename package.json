@@ -1,8 +1,8 @@
 {
   "name": "vscode-abap-remote-fs",
-  "displayName": "ABAP remote filesystem (ADT creation fix 3 candidate)",
+  "displayName": "ABAP remote filesystem (ADT creation fix 4)",
   "description": "VS Code-based Agentic AI Platform for SAP ABAP Development",
-  "version": "2.12.2",
+  "version": "2.12.3",
   "publisher": "murbani",
   "publishConfig": {
     "access": "restricted",
@@ -4075,6 +4075,34 @@
           },
           "required": [
             "action"
+          ]
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_get_creation_diagnostics",
+        "displayName": "Inspect ABAP creation contracts and HTTP errors",
+        "modelDescription": "Read the loaded extension version, creatable object types, ADT discovery media types and recorded object-creation HTTP requests/responses. Does not create or change SAP objects. startLogging enables communication logging for subsequent requests. Header output is restricted to Content-Type; XML bodies can contain object metadata.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_get_creation_diagnostics",
+        "icon": "$(debug)",
+        "userDescription": "Inspect object-creation capabilities and recorded HTTP failures",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string"
+            },
+            "startLogging": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "connectionId"
           ]
         },
         "tags": [

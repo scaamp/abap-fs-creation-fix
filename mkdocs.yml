@@ -27,6 +27,9 @@ theme:
 
 nav:
   - Home: index.md
+  - Patched Distribution:
+      - Installation and rollback: adt-creation-fix.md
+      - Creation contract audit: adt-creation-matrix.md
   - Getting Started:
       - Prerequisites: getting-started/prerequisite.md
       - Installation: getting-started/installation.md

@@ -1,0 +1,50 @@
+diff --git a/src/api/objectcreator.ts b/src/api/objectcreator.ts
+--- a/src/api/objectcreator.ts
++++ b/src/api/objectcreator.ts
+@@ -185,7 +185,7 @@
+ <pak:package xmlns:pak="http://www.sap.com/adt/packages"
+ xmlns:adtcore="http://www.sap.com/adt/core" ${description}
+ ${pkgname} adtcore:type="DEVC/K" adtcore:version="active" ${responsible}>
+-<adtcore:packageRef  adtcore:name="YMU_RAP"/>
++<adtcore:packageRef ${pkgname}/>
+ <pak:attributes ${pkgtype}/>
+ <pak:superPackage ${superp}/>
+ <pak:applicationComponent/>
+@@ -241,7 +241,7 @@
+               <srvb:serviceDefinition adtcore:name="${options.service}"/>
+           </srvb:content>
+       </srvb:services>
+-      <srvb:binding srvb:category="0" srvb:type="${options.bindingtype}" srvb:version="V2">
++      <srvb:binding srvb:category="${options.category}" srvb:type="${options.bindingtype}" srvb:version="V2">
+           <srvb:implementation adtcore:name=""/>
+       </srvb:binding>`
+   return createBodySimple(options, type, body)
+diff --git a/src/api/creationcontext.test.ts b/src/api/creationcontext.test.ts
+new file mode 100644
+--- /dev/null
++++ b/src/api/creationcontext.test.ts
+@@ -0,0 +1,24 @@
++import { AdtHTTP } from "../AdtHTTP"
++import { createObject, NewPackageOptions, NewBindingOptions } from "./objectcreator"
++import { fullParse } from "../utilities"
++
++const common = { name: 'ZEXAMPLE', parentName: 'ZPARENT', parentPath: '', description: 'Example' }
++function setup() {
++  const http = new AdtHTTP("https://example.invalid", "DEV_USER", "unused", "001", "EN")
++  const request = jest.spyOn(http, "request").mockResolvedValue({ status: 201, statusText: "Created", body: "", headers: {} })
++  return { http, request }
++}
++test("package references its own name, retaining the selected parent and component", async () => {
++  const { http, request } = setup()
++  await createObject(http, { ...common, objtype: "DEVC/K", swcomp: "HOME", packagetype: "development", transportLayer: "DEV" } as NewPackageOptions)
++  const root = fullParse(request.mock.calls[1][1]!.body!)["pak:package"]
++  expect(root["adtcore:packageRef"]["@_adtcore:name"]).toBe(common.name)
++  expect(root["pak:superPackage"]["@_adtcore:name"]).toBe(common.parentName)
++  expect(root["pak:transport"]["pak:softwareComponent"]["@_pak:name"]).toBe("HOME")
++})
++test.each(["0", "1"] as const)("binding retains requested category %s", async category => {
++  const { http, request } = setup()
++  await createObject(http, { ...common, objtype: "SRVB/SVB", service: "ZSERVICE", bindingtype: "ODATA", category } as NewBindingOptions)
++  const root = fullParse(request.mock.calls[1][1]!.body!)["srvb:serviceBinding"]
++  expect(String(root["srvb:binding"]["@_srvb:category"])).toBe(category)
++})

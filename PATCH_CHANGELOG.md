@@ -1,5 +1,16 @@
 # Patched distribution changelog
 
+## v2.12.3-adt-creation-fix.4 — 2026-10-25
+
+- Audit all 23 registered creation types. Live creation and independent verification passed for 20. DDLA, programs and standalone includes reached backend authorization denials (HTTP 403); they are not claimed as successful creation tests.
+- Select exact per-collection XML media types from discovery. Add separately verified DDLA and function-group include fallbacks. Keep header fixes separate from XML/source patches.
+- Enforce the common 12-character owner contract; resolve the required package owner from authenticated system information instead of a login email. No fixed system, user or transport identifiers are added.
+- Fix package self-reference, inherited change-recording/language context and validation parameter spelling. Preserve explicit MCP package inputs, function include suffixes and requested binding categories.
+- Add read-only sanitized creation diagnostics with extension identity and runtime type/discovery information. Retain HTTP response-body logging and requested-versus-verified transport reporting.
+- Document the complete audit, installation, MCP instance checks, inactive-object verification and rollback. Ordinary installed extensions and the application repository were not modified. Only synthetic SAP fixtures were created; one approved test service definition was edited/activated to permit binding creation. No binding was published and no transport was created or released.
+
+Validation: API build/typecheck and **367 tests / 23 suites PASS**. Extension full suite **4364 tests / 258 files PASS**; build/typecheck and formatting pass. All 12 source patches apply to the pinned upstream baseline and reproduce the tested source. Detailed live results and limitations: [creation matrix](docs/adt-creation-matrix.md).
+
 ## v2.12.2-adt-creation-fix.3-candidate — 2026-10-25
 
 - Read-only backend inspection confirmed the DDLS/common-core owner maps to `RESPONSIBL`/`AS4USER`, `CHAR(12)`. Omit blank owners and owners over 12 characters in DDLS XML, including the reported login alias. Preserve names that fit the field; do not truncate, invent character restrictions or hardcode identity.
