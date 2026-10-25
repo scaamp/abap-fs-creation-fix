@@ -9,6 +9,8 @@
 >
 > This is an independent repository, not an official release or a GitHub fork relationship. Earlier releases and their verification limits remain documented in [PATCH_CHANGELOG.md](PATCH_CHANGELOG.md).
 
+Potential future development: [MCP feature assessment — value, priorities, existing foundations and limitations (Polish)](docs/potential-mcp-features.md). These are proposals, not implemented capabilities.
+
 **A VS Code extension that gives AI assistants real, live access to your SAP system — reads actual code, queries live tables, runs tests, debugs, and understands your custom objects.**
 
 > Ask "How does BAPI_USER_GET_DETAIL work?" and the AI finds the function, reads the code, checks where it's used, and examines related objects — without you opening anything manually.
