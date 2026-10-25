@@ -5,7 +5,7 @@
 >
 > **[Download the ready-to-install VSIX](https://github.com/scaamp/abap-fs-creation-fix/releases/latest)** · **[Changes, installation, MCP setup and rollback](docs/adt-creation-fix.md)**
 >
-> **Creation fix 4 (extension 2.12.3):** the [complete creation-type audit](docs/adt-creation-matrix.md) covers all 23 types registered by this extension. It adds per-collection media negotiation, shared owner validation, package-context fixes, MCP input fixes and sanitized diagnostics. Each object keeps its own ADT XML contract. Backend permissions still apply; an HTTP 403 is not a successful creation test.
+> **Creation fix 5 (extension 2.12.4):** local Cloud packages with `recordChanges=false` now skip transport selection in the wizard and MCP, including request creation. The existing ADT XML/media fixes are retained. See the [installation guide](docs/adt-creation-fix.md) and [creation audit](docs/adt-creation-matrix.md) for validation scope and backend authorization limits.
 >
 > This is an independent repository, not an official release or a GitHub fork relationship. Earlier releases and their verification limits remain documented in [PATCH_CHANGELOG.md](PATCH_CHANGELOG.md).
 

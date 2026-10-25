@@ -5,6 +5,29 @@ import { fieldOrder, withp } from "../lib"
 import { type TransportValidator } from "../api"
 import { uriRoot, getClient } from "./conections"
 import { isAbapStat, isAbapFolder } from "abapfs"
+import { XMLParser } from "fast-xml-parser"
+
+// Odczytaj bieżące ustawienie pakietu przed wyborem transportu przy tworzeniu.
+// Brak pola lub błąd odczytu oznacza nieznany stan, nie pakiet lokalny.
+export async function packageChangeRecording(
+  client: ADTClient,
+  packageName: string
+): Promise<boolean | undefined> {
+  const name = packageName.trim()
+  if (!name) return undefined
+  try {
+    const xml = await client.getObjectSource(
+      `/sap/bc/adt/packages/${encodeURIComponent(name.toLowerCase())}`
+    )
+    const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml) as {
+      "pak:package"?: { "pak:attributes"?: { "@_pak:recordChanges"?: string } }
+    }
+    const value = parsed?.["pak:package"]?.["pak:attributes"]?.["@_pak:recordChanges"]
+    return value === "false" ? false : value === "true" ? true : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export interface TransportSelection {
   cancelled: boolean
@@ -58,6 +81,7 @@ export async function selectTransport(
   current: string | TransportStatus = "",
   transportLayer = ""
 ): Promise<TransportSelection> {
+  if (forCreation && (await packageChangeRecording(client, devClass)) === false) return trSel("")
   let ti: TransportInfo
   try {
     ti = await client.transportInfo(objContentPath, devClass, forCreation ? "I" : "")
@@ -130,6 +154,7 @@ export async function pickTransportProgrammatically(
   devClass: string,
   transportLayer = ""
 ): Promise<TransportSelection> {
+  if ((await packageChangeRecording(client, devClass)) === false) return trSel("")
   let info: TransportInfo
   try {
     info = await client.transportInfo(objContentPath, devClass, "I")

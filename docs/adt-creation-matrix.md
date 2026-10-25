@@ -2,6 +2,12 @@
 
 This audit covers all **23 creation types registered by this extension**: the 22 library entries and the runtime BDEF registration. It does not claim support for every repository type in SAP. Tests created fresh synthetic objects in one ABAP Cloud development system, through the shared wizard/MCP creator in an isolated Extension Development Host. No business objects were changed.
 
+## Transport selection correction in 2.12.4
+
+The live table below records the 2.12.3 creation audit. Version 2.12.4 retains that API runtime and corrects a separate transport-selection problem: the previous selector only recognized the classic local component marker, so a local Cloud package could prompt for a request even though SAP did not assign the created object to it. Choosing “new transport” in that unnecessary dialog could leave an empty request.
+
+The new creator reads the target package's explicit `pak:recordChanges` setting. `false` skips selection, dialogs and transport creation in both the wizard and MCP, even if MCP supplied a transport choice. `true` or unknown metadata preserves the previous CTS path. Existing-object writes and locks are unchanged. Tests verify absent `corrNr` for class and CDS requests. The same check can be invoked read-only through diagnostics with `packageName`; `null` means unknown. Live read-only checks confirmed the distinction between a local Cloud package and a transportable Cloud package. No SAP writes or transport mutations were performed for 2.12.4.
+
 ## Request differences and fixes
 
 Headers and XML were tested separately. With the original XML, replacing a wildcard/URL-derived media type with the exact collection's advertised XML type changed many HTTP 415 responses into transformation errors. Omitting a login alias longer than the shared `RESPONSIBL`/`AS4USER` CHAR(12) field then allowed creation. Each type retains its own XML root and namespace; DCL, DDLS and BDEF are not serialized as classes.

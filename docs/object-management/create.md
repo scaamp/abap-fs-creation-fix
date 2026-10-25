@@ -22,7 +22,7 @@ Ask Copilot in natural language, for example:
 
 > *"Create a new class ZCL_MY_CLASS with description 'My class'"*
 
-Copilot fills in the object details automatically. You will still be prompted to select a transport request.
+Copilot fills in the object details automatically. For packages that record changes, MCP can use an explicitly supplied transport choice; otherwise the normal selector is used. Packages with `recordChanges=false` skip transport selection entirely.
 
 ## Supported Object Types
 
@@ -43,7 +43,7 @@ Many additional types are supported. If the object type you need is not listed, 
 
 ## Notes
 
-- A **transport request** dialog always appears for objects that require transport. This step cannot be skipped.
+- Transport selection follows the target package: explicit `recordChanges=false` skips it. For transportable packages, choose a request in the wizard or supply an authorized choice through MCP. Creating a new request requires an explicit choice; an empty creation result is not proof of backend transport assignment.
 - The new object opens in the editor automatically after creation.
 - Objects must be **activated** before they can be used at runtime.
 

@@ -1,8 +1,8 @@
 {
   "name": "vscode-abap-remote-fs",
-  "displayName": "ABAP remote filesystem (ADT creation fix 4)",
+  "displayName": "ABAP remote filesystem (ADT creation fix 5)",
   "description": "VS Code-based Agentic AI Platform for SAP ABAP Development",
-  "version": "2.12.3",
+  "version": "2.12.4",
   "publisher": "murbani",
   "publishConfig": {
     "access": "restricted",
@@ -4085,7 +4085,7 @@
       {
         "name": "abapfs_get_creation_diagnostics",
         "displayName": "Inspect ABAP creation contracts and HTTP errors",
-        "modelDescription": "Read the loaded extension version, creatable object types, ADT discovery media types and recorded object-creation HTTP requests/responses. Does not create or change SAP objects. startLogging enables communication logging for subsequent requests. Header output is restricted to Content-Type; XML bodies can contain object metadata.",
+        "modelDescription": "Read the loaded extension version, creatable object types, ADT discovery media types and recorded object-creation HTTP requests/responses. Optional packageName reads its change-recording setting with the same policy used before creation transport selection; null means unknown. Does not create or change SAP objects. startLogging enables communication logging for subsequent requests. Header output is restricted to Content-Type; XML bodies can contain object metadata.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "abapfs_get_creation_diagnostics",
         "icon": "$(debug)",
@@ -4099,6 +4099,10 @@
             "startLogging": {
               "type": "boolean",
               "default": false
+            },
+            "packageName": {
+              "type": "string",
+              "description": "Optional package name. Read its recordChanges flag without creating objects or transports; null means the setting could not be determined."
             }
           },
           "required": [

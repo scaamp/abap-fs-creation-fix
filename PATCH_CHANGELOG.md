@@ -1,5 +1,15 @@
 # Patched distribution changelog
 
+## v2.12.4-adt-creation-fix.5 — 2026-10-25
+
+- Fix creation transport selection for local Cloud packages whose component is not the classic `LOCAL`. Read `pak:recordChanges` from the actual package before choosing or creating a transport. Explicit `false` skips the picker for the wizard and both MCP transport modes, including an otherwise explicit new-request choice.
+- Do not infer locality from a package/component name. Read failure or a missing flag preserves the previous CTS selection path. Existing-object transport handling and locks are unchanged; package metadata is not cached between operations.
+- Extend read-only creation diagnostics with optional `packageName`; `package.recordChanges` is `true`, `false` or `null` when unknown. The tool uses the same function as creation selection and does not enable logging unless requested.
+- Add regressions for UI/MCP routing, no transport-creation side effects, omitted `corrNr` in actual class/CDS API requests, unknown metadata, namespaced packages and existing-object locks.
+- Preserve all API/XML fixes from creation fix 4. The previous 23-type live audit remains historical evidence for 2.12.3. This release's package-policy check was verified read-only against local and transportable Cloud packages; no SAP objects or transports were created, edited, activated, published or deleted for this release.
+
+Validation: build/typecheck PASS, **4379 tests / 259 files PASS** (including 15 new regressions). Read-only checks in an isolated Development Host confirmed `recordChanges=false` for a local Cloud package and `true` for a transportable Cloud package. No new live creation/activation test was performed for this release.
+
 ## v2.12.3-adt-creation-fix.4 — 2026-10-25
 
 - Audit all 23 registered creation types. Live creation and independent verification passed for 20. DDLA, programs and standalone includes reached backend authorization denials (HTTP 403); they are not claimed as successful creation tests.

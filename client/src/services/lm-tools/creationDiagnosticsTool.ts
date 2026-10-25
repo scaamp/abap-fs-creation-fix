@@ -3,12 +3,14 @@ import { CreatableTypes } from "abap-adt-api"
 import { XMLParser } from "fast-xml-parser"
 import { CallLogger, getLogEntries } from "../../adt/adtCommLog"
 import { getClient } from "../../adt/conections"
+import { packageChangeRecording } from "../../adt/AdtTransports"
 import { registerToolWithRegistry } from "./toolRegistry"
 import { assertToolInvocationAuthorized } from "./toolGuard"
 
 interface Parameters {
   connectionId: string
   startLogging?: boolean
+  packageName?: string
 }
 
 interface Collection {
@@ -56,6 +58,10 @@ export class CreationDiagnosticsTool implements vscode.LanguageModelTool<Paramet
     if (options.input.startLogging) CallLogger.getOrCreate(connectionId)
     const response = await getClient(connectionId).httpClient.request("/sap/bc/adt/discovery")
     const collections = creationCollections(response.body)
+    const packageName = options.input.packageName?.trim()
+    const recording = packageName
+      ? await packageChangeRecording(getClient(connectionId), packageName)
+      : undefined
     const types = [...CreatableTypes.values()].map(type => ({
       type: type.typeId,
       path: "/sap/bc/adt/" + type.creationPath,
@@ -88,6 +94,9 @@ export class CreationDiagnosticsTool implements vscode.LanguageModelTool<Paramet
           version: this.context.extension.packageJSON.version,
           development: this.context.extensionMode === vscode.ExtensionMode.Development,
           logging: CallLogger.getActiveConnIds().includes(connectionId),
+          ...(packageName
+            ? { package: { name: packageName, recordChanges: recording ?? null } }
+            : {}),
           types,
           collections,
           creationLog

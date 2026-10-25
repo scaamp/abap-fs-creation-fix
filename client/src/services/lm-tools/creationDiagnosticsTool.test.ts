@@ -8,6 +8,7 @@ vi.mock("vscode", () => ({
   }
 }))
 vi.mock("../../adt/conections", () => ({ getClient: vi.fn() }))
+vi.mock("../../adt/AdtTransports", () => ({ packageChangeRecording: vi.fn() }))
 vi.mock("../../adt/adtCommLog", () => ({
   CallLogger: { getOrCreate: vi.fn(), getActiveConnIds: vi.fn(() => ["dev100"]) },
   getLogEntries: vi.fn(() => [])
@@ -16,10 +17,29 @@ vi.mock("./toolGuard", () => ({ assertToolInvocationAuthorized: vi.fn() }))
 import { CreationDiagnosticsTool, creationCollections } from "./creationDiagnosticsTool"
 import { getClient } from "../../adt/conections"
 import { CallLogger, getLogEntries } from "../../adt/adtCommLog"
+import { packageChangeRecording } from "../../adt/AdtTransports"
 
 const discovery = `<app:service><app:workspace><app:collection href="/sap/bc/adt/ddic/ddl/sources"><app:accept>application/vnd.sap.adt.ddlSource+xml</app:accept><app:accept>application/xml</app:accept></app:collection></app:workspace></app:service>`
 
 describe("creation diagnostics", () => {
+  test.each([false, true, undefined])(
+    "reports package change recording %s without enabling logging",
+    async recording => {
+      vi.mocked(packageChangeRecording).mockResolvedValue(recording)
+      const tool = new CreationDiagnosticsTool({
+        extension: { id: "example", packageJSON: { version: "test" } },
+        extensionMode: 2
+      } as any)
+      const result = await tool.invoke({
+        input: { connectionId: "DEV100", packageName: " ZPACKAGE " }
+      } as any)
+      const data = JSON.parse((result as any).parts[0].value)
+      expect(data.package).toEqual({ name: "ZPACKAGE", recordChanges: recording ?? null })
+      expect(packageChangeRecording).toHaveBeenCalledWith(getClient("dev100"), "ZPACKAGE")
+      expect(CallLogger.getOrCreate).not.toHaveBeenCalled()
+    }
+  )
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getClient).mockReturnValue({

@@ -6,7 +6,7 @@ This repository distributes unofficial patched builds based on ABAP FS 2.12.0. I
 
 Download the `.vsix` and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/scaamp/abap-fs-creation-fix/releases/latest).
 
-The current [creation fix 4](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.3-adt-creation-fix.4) was tested across all 23 registered creation types: 20 were created and independently verified; three were denied by backend permissions. See the [result matrix](adt-creation-matrix.md). Earlier candidates are retained as historical releases.
+The current [creation fix 5](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.4-adt-creation-fix.5) fixes unnecessary transport prompts/request creation for local Cloud packages. It retains the API/XML changes from 2.12.3, whose [23-type live audit](adt-creation-matrix.md) remains documented separately. The new package-policy check was verified read-only; this release did not create SAP objects or transports.
 
 1. Open the intended VS Code profile.
 2. Open Extensions (`Ctrl+Shift+X`), choose `...` → **Install from VSIX...**, and select the downloaded file.
@@ -14,21 +14,25 @@ The current [creation fix 4](https://github.com/scaamp/abap-fs-creation-fix/rele
 4. Configure your SAP connection on a new workstation. The VSIX contains no SAP connection configuration.
 5. Restart/reconnect your MCP client and confirm which VS Code instance serves its configured endpoint.
 
-The extension keeps the upstream identifier `murbani.vscode-abap-remote-fs` so that it replaces the existing extension in the chosen profile. This build uses version `2.12.3` and display name **ABAP remote filesystem (ADT creation fix 4)**. The earlier class-only release used `2.12.0`. If necessary, install it explicitly:
+The extension keeps the upstream identifier `murbani.vscode-abap-remote-fs` so that it replaces the existing extension in the chosen profile. This build uses version `2.12.4` and display name **ABAP remote filesystem (ADT creation fix 5)**. The earlier class-only release used `2.12.0`. If necessary, install it explicitly:
 
 ```powershell
-code --install-extension .\abap-fs-2.12.3-adt-creation-fix.4.vsix --force
+code --install-extension .\abap-fs-2.12.4-adt-creation-fix.5.vsix --force
 ```
 
 For a named profile, add `--profile "Profile name"`. The VSIX includes the patched API runtime: no local source checkout, Node.js or pnpm is needed on the destination workstation. Its declared VS Code requirement is `^1.105.0`; the existing dependencies `larshp.vscode-abap` and `hudakf.cds` are still required. An official extension update can replace this build.
 
-## Current release: creation fix 4
+## Current release: creation fix 5
 
-Extension version **2.12.3**, release `v2.12.3-adt-creation-fix.4`, extends the earlier class/CDS fixes to the complete registered creation catalogue. See the [23-type audit](adt-creation-matrix.md) for exact live results, request differences, verified backend authorization denials and the distinction between creation, activation and publication. The historical candidate sections below describe their original scope, not the current release.
+Extension version **2.12.4**, release `v2.12.4-adt-creation-fix.5`, reads the target package's `pak:recordChanges` flag before creation transport selection. When explicitly `false`, both the wizard and MCP skip CTS selection, dialogs and transport creation, and object creation has no `corrNr`. A local Cloud package does not have to be named `$TMP` or use component `LOCAL`.
 
-Media-type negotiation and XML/owner changes are separate source patches. Packages resolve a required backend owner from the current authenticated session and inherit their parent package settings. MCP package options, function include suffixes and binding categories are retained. The new read-only `abapfs_get_creation_diagnostics` tool identifies the running version/process mode and exposes sanitized creation traces; use it to avoid routing MCP to a different VS Code window.
+When recording is enabled, the existing CTS/transport-selection flow is retained. Missing metadata or an unavailable package read retains the previous fallback; it is not treated as proof of locality. Existing-object editing and transport locks are unchanged. The flag is read afresh from the same SAP connection.
 
-No workstation profile, connection credentials or private SAP identifiers are distributed in the VSIX. Other SAP versions still require their own verification; backend authorization limits are not bypassed.
+For a read-only preflight, invoke `abapfs_get_creation_diagnostics` with `connectionId` and `packageName`. The returned `package.recordChanges` is `false`, `true`, or `null` if unknown. This uses the same function as the creator, without SAP writes or transport creation. Do not set `startLogging` unless communication capture is wanted.
+
+The [23-type creation audit](adt-creation-matrix.md) was performed for 2.12.3; it is not a claim that all live writes were repeated for 2.12.4. The API runtime/source patches are unchanged. The current correction is verified with regression tests and read-only checks against local and transportable Cloud packages, followed by an isolated packaged-VSIX smoke check.
+
+No workstation profile, connection credentials or private SAP identifiers are distributed in the VSIX. Other SAP versions still require their own verification; backend authorization limits are not bypassed. The historical candidate sections below describe their original scope.
 
 ## What changed
 
