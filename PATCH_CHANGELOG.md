@@ -1,6 +1,18 @@
 # Patched distribution changelog
 
+## v2.12.2-adt-creation-fix.3-candidate — 2026-10-25
+
+- Read-only backend inspection confirmed the DDLS/common-core owner maps to `RESPONSIBL`/`AS4USER`, `CHAR(12)`. Omit blank owners and owners over 12 characters in DDLS XML, including the reported login alias. Preserve names that fit the field; do not truncate, invent character restrictions or hardcode identity.
+- Keep the DDLS header correction separate (source patch 04) from this owner/XML correction (patch 05). Leave DDLS root, language casing, other XML fields and other creation contracts unchanged.
+- Normalize communication-log connection IDs so configured uppercase names match lowercase URI authorities. Explicitly activate logging after reload.
+- Capture the UI-selected transport in programmatic creation results. Replace the false “local — no transport required” message with requested/unverified assignment reporting.
+- Version `2.12.2` and display name identify candidate `.3`. No SAP writes, activation, transport changes or installed-extension changes were performed during its preparation.
+
+Validation: API typecheck/build and 318 tests in 20 suites passed. Extension typecheck/build, 61 focused tests and the full suite of 4356 tests in 257 files passed. Formatting and source patch 05 apply checks passed. Live DDLS creation and live log recovery remain unverified. Table/data-element unsupported-media failures remain outside this patch.
+
 ## v2.12.1-adt-creation-fix.2-candidate — 2026-10-25
+
+Tester subsequently reported DDLS deserialization failure with this header-only candidate. Superseded by candidate `.3`; do not treat `.2` as a verified DDLS fix.
 
 - Correct the DDLS/DF creation Content-Type to `application/vnd.sap.adt.ddlSource+xml`; preserve DDLS XML and other object contracts.
 - Keep this header-only change separate from the earlier class V4 XML patch. Include API tests for headers, unchanged XML, context, no retry and unaffected object types, plus a regression test against the extension's installed API dependency.

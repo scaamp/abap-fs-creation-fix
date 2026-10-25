@@ -17,6 +17,7 @@ describe("packaged API DDLS creation contract", () => {
       description: "Example view",
       parentName: "ZEXAMPLE",
       parentPath: "/sap/bc/adt/packages/zexample",
+      responsible: "alias@example.invalid",
       transport: "DEVK900123"
     })
 
@@ -33,5 +34,6 @@ describe("packaged API DDLS creation contract", () => {
     expect(body).toContain('adtcore:type="DDLS/DF"')
     expect(body).toContain('<adtcore:packageRef adtcore:name="ZEXAMPLE"/>')
     expect(body).not.toContain("class:")
+    expect(body).not.toContain("adtcore:responsible=")
   })
 })

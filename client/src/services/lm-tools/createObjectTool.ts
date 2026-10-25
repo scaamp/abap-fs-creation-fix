@@ -135,9 +135,9 @@ export class CreateABAPObjectTool implements vscode.LanguageModelTool<ICreateObj
       const structured =
         result && typeof result === "object" && "success" in result ? (result as any) : undefined
       const transportLine = structured?.transport
-        ? `Transport: ${structured.transport}\n`
+        ? `Transport requested: ${structured.transport} (backend assignment not verified)\n`
         : structured && "transport" in structured
-          ? `Transport: (local — no transport required)\n`
+          ? `Transport: not specified in the result; backend assignment not verified\n`
           : ""
 
       const resultText =

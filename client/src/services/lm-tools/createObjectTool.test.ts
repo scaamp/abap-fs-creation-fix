@@ -176,6 +176,46 @@ describe("CreateABAPObjectTool", () => {
       expect(result.parts[0].text).toContain("ZPROG")
     })
 
+    it.each([undefined, ""])(
+      "does not claim a local object from an empty transport result: %s",
+      async transport => {
+        vi.mocked(vscode.commands.executeCommand).mockResolvedValueOnce({
+          success: true,
+          transport
+        })
+        const result: any = await tool.invoke(
+          makeOptions({
+            objectType: "CLAS/OC",
+            name: "ZCL_EXAMPLE",
+            description: "Example",
+            connectionId: "dev100"
+          }),
+          mockToken
+        )
+        expect(result.parts[0].text).toContain("backend assignment not verified")
+        expect(result.parts[0].text).not.toContain("local")
+        expect(result.parts[0].text).not.toContain("no transport required")
+      }
+    )
+
+    it("labels a selected transport as requested rather than independently verified", async () => {
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValueOnce({
+        success: true,
+        transport: "DEVK900123"
+      })
+      const result: any = await tool.invoke(
+        makeOptions({
+          objectType: "CLAS/OC",
+          name: "ZCL_EXAMPLE",
+          description: "Example",
+          connectionId: "dev100"
+        }),
+        mockToken
+      )
+      expect(result.parts[0].text).toContain("Transport requested: DEVK900123")
+      expect(result.parts[0].text).toContain("backend assignment not verified")
+    })
+
     it("returns error result when command returns {success:false}", async () => {
       ;(vscode.commands.executeCommand as Mock).mockResolvedValue({
         success: false,

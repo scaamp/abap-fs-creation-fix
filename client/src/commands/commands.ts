@@ -709,26 +709,36 @@ export class AdtCommands {
         }
       }
 
-      // 5. Build a non-interactive transport picker if a transport request was
-      // supplied. Passed to createObject below so it replaces the default UI
-      // picker without any monkey-patching. Prevents blocking QuickPicks and
-      // silent LOCKS-based reassignment during MCP-driven creation. See #466.
+      // 5. Capture the chosen transport in both UI and non-interactive flows.
+      // Explicit requests use the headless picker; otherwise retain the ordinary UI picker.
       let resolvedTransport: string | undefined
-      const transportPicker = additionalOptions?.transportRequest
-        ? async (objContentPath: string, devclass: string, transportLayer: string) => {
-            const sel = await pickTransportProgrammatically(
+      const transportPicker = async (
+        objContentPath: string,
+        devclass: string,
+        transportLayer: string
+      ) => {
+        // Zapamiętaj również wybór z UI; pusty wynik nie dowodzi braku przypisania w SAP.
+        const sel = additionalOptions?.transportRequest
+          ? await pickTransportProgrammatically(
               getClient(connId),
-              additionalOptions.transportRequest!,
+              additionalOptions.transportRequest,
               objContentPath,
               devclass,
               transportLayer
             )
-            resolvedTransport = sel.transport
-            return sel
-          }
-        : undefined
+          : await selectTransport(
+              objContentPath,
+              devclass,
+              getClient(connId),
+              true,
+              undefined,
+              transportLayer
+            )
+        resolvedTransport = sel.transport
+        return sel
+      }
 
-      // 6. Let ADT create the object (picker handles transport step if supplied)
+      // 6. Let ADT create the object with the selected transport.
       const obj = await creator.createObject(undefined, transportPicker)
 
       if (!obj) {

@@ -1,8 +1,8 @@
 {
   "name": "vscode-abap-remote-fs",
-  "displayName": "ABAP remote filesystem (ADT creation fix 2 candidate)",
+  "displayName": "ABAP remote filesystem (ADT creation fix 3 candidate)",
   "description": "VS Code-based Agentic AI Platform for SAP ABAP Development",
-  "version": "2.12.1",
+  "version": "2.12.2",
   "publisher": "murbani",
   "publishConfig": {
     "access": "restricted",

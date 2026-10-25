@@ -12,7 +12,7 @@ index b94f42c2e5adb892ac307a98555a70725217197f..cad6df71dfd12994281b1667a1eb8a84
  exports.fromResponse = fromResponse;
  const fromError = (error) => {
 diff --git a/build/api/objectcreator.js b/build/api/objectcreator.js
-index 7e28ddf0936c72d1deaee06bed952845adedd728..92c4dccbfab535499bcadf6d6978c7841999c020 100644
+index 7e28ddf0936c72d1deaee06bed952845adedd728..b3f33ce9f88dad2b11529e2289a6b8d1eb4a9fa1 100644
 --- a/build/api/objectcreator.js
 +++ b/build/api/objectcreator.js
 @@ -18,6 +18,15 @@ const utilities_1 = require("../utilities");
@@ -31,7 +31,21 @@ index 7e28ddf0936c72d1deaee06bed952845adedd728..92c4dccbfab535499bcadf6d6978c784
  exports.BindinTypes = [
      { description: "Odata V2 - Web API", bindingtype: "ODATA", category: "0" },
      { description: "Odata V2 - UI", bindingtype: "ODATA", category: "1" }
-@@ -97,6 +106,26 @@ function createBodyBinding(options, type) {
+@@ -70,7 +79,12 @@ function createBodyFunc(options, type) {
+ </${type.rootName}>`;
+ }
+ function createBodySimple(options, type, body = "") {
+-    const responsible = `adtcore:responsible="${options.responsible}"`;
++    // DDLS: RESPONSIBL ma 12 znaków; dłuższy login nie mieści się w kontrakcie.
++    // Pominięcie opcjonalnego atrybutu pozostawia wybór kontekstowi backendu.
++    const owner = options.responsible || "";
++    const responsible = type.typeId === "DDLS/DF"
++        ? xmlAttribute(owner.trim() && owner.length <= 12 ? owner : "", "adtcore:responsible")
++        : `adtcore:responsible="${options.responsible}"`;
+     const language = options.language || "EN";
+     const masterLanguage = options.masterLanguage || language;
+     const masterSystem = options.masterSystem || "";
+@@ -97,6 +111,26 @@ function createBodyBinding(options, type) {
        </srvb:binding>`;
      return createBodySimple(options, type, body);
  }
@@ -58,7 +72,7 @@ index 7e28ddf0936c72d1deaee06bed952845adedd728..92c4dccbfab535499bcadf6d6978c784
  function createBody(options, type) {
      switch (type.typeId) {
          case "DEVC/K":
-@@ -163,15 +192,22 @@ async function createObject(h, options) {
+@@ -163,15 +197,22 @@ async function createObject(h, options) {
          throw (0, AdtException_1.adtException)("Unsupported object type");
      const url = "/sap/bc/adt/" +
          formatCreationPath(ot.creationPath, encodeURIComponent(options.parentName.toLowerCase()));

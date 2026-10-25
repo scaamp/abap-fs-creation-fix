@@ -38,6 +38,7 @@ import {
   CommLogPanel
 } from "./adtCommLog"
 import { commands, env, window } from "vscode"
+import { pickAdtRoot } from "../config"
 import type { Mock } from "vitest"
 
 // Reset module-level state between tests by manipulating entries array
@@ -159,6 +160,28 @@ describe("CallLogger", () => {
     const l1 = CallLogger.getOrCreate("testconn2")
     const l2 = CallLogger.getOrCreate("testconn2")
     expect(l1).toBe(l2)
+  })
+
+  it("routes configured connection names and URI authorities to the same logger", () => {
+    const logger = CallLogger.getOrCreate("dev100")
+    expect(CallLogger.get("DEV100")).toBe(logger)
+    expect(CallLogger.getOrCreate("Dev100")).toBe(logger)
+    expect(CallLogger.getActiveConnIds()).toEqual(["dev100"])
+  })
+
+  it("normalizes a logger activated using an uppercase connection name", () => {
+    const logger = CallLogger.getOrCreate("DEV100")
+    expect(CallLogger.get("dev100")).toBe(logger)
+    expect(CallLogger.getActiveConnIds()).toEqual(["dev100"])
+  })
+
+  it("deactivates a normalized logger using an uppercase folder authority", async () => {
+    CallLogger.getOrCreate("dev100")
+    vi.mocked(pickAdtRoot).mockResolvedValueOnce({
+      uri: { scheme: "adt", authority: "DEV100" }
+    } as any)
+    await CallLogger.deactivateLogging()
+    expect(CallLogger.getActiveConnIds()).toEqual([])
   })
 
   it("returns active connection IDs", () => {

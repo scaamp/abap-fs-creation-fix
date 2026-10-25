@@ -1,12 +1,12 @@
 # ADT creation fix: changes, installation and verification
 
-This repository distributes an unofficial patched ABAP FS 2.12.0 build. It retains the upstream source history, authorship and MIT license. It does not publish to the VS Code Marketplace or Open VSX. The original publishing workflows are restricted to the upstream repository.
+This repository distributes unofficial patched builds based on ABAP FS 2.12.0. It retains the upstream source history, authorship and MIT license. It does not publish to the VS Code Marketplace or Open VSX. The original publishing workflows are restricted to the upstream repository.
 
 ## Download and install
 
 Download the `.vsix` and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/scaamp/abap-fs-creation-fix/releases/latest).
 
-For the header-only DDLS test, use [candidate `.2`](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.1-adt-creation-fix.2-candidate), which is a prerelease and has not been verified by a live DDLS creation. The stable `.1` release does not contain this DDLS correction.
+The current [candidate `.3`](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.2-adt-creation-fix.3-candidate) adds a DDLS owner correction, connection-log routing and truthful transport reporting. The tester reported that header-only candidate `.2` still fails DDLS deserialization. Candidate `.3` has not yet passed live DDLS creation. Stable `.1` fixes classes only.
 
 1. Open the intended VS Code profile.
 2. Open Extensions (`Ctrl+Shift+X`), choose `...` → **Install from VSIX...**, and select the downloaded file.
@@ -14,10 +14,10 @@ For the header-only DDLS test, use [candidate `.2`](https://github.com/scaamp/ab
 4. Configure your SAP connection on a new workstation. The VSIX contains no SAP connection configuration.
 5. Restart/reconnect your MCP client and confirm which VS Code instance serves its configured endpoint.
 
-The extension keeps the upstream identifier `murbani.vscode-abap-remote-fs` so that it replaces the existing extension in the chosen profile. The new DDLS candidate uses version `2.12.1` and display name **ABAP remote filesystem (ADT creation fix 2 candidate)**. The earlier class-only release used `2.12.0`. If necessary, install the candidate explicitly:
+The extension keeps the upstream identifier `murbani.vscode-abap-remote-fs` so that it replaces the existing extension in the chosen profile. The current DDLS candidate uses version `2.12.2` and display name **ABAP remote filesystem (ADT creation fix 3 candidate)**. The earlier class-only release used `2.12.0`. If necessary, install the candidate explicitly:
 
 ```powershell
-code --install-extension .\abap-fs-2.12.1-adt-creation-fix.2-candidate.vsix --force
+code --install-extension .\abap-fs-2.12.2-adt-creation-fix.3-candidate.vsix --force
 ```
 
 For a named profile, add `--profile "Profile name"`. The VSIX includes the patched API runtime: no local source checkout, Node.js or pnpm is needed on the destination workstation. Its declared VS Code requirement is `^1.105.0`; the existing dependencies `larshp.vscode-abap` and `hudakf.cds` are still required. An official extension update can replace this build.
@@ -40,7 +40,7 @@ Discovery is read before the class POST. Systems that do not advertise class V4 
 
 Only the class XML contract changes. The DDLS candidate changes its HTTP Content-Type separately, retaining its own XML seed and all other object contracts.
 
-### DDLS candidate: header only
+### DDLS candidate `.2`: header only (tester reported deserialization failure)
 
 An authenticated failed DDLS creation request supplied by the tester used `Content-Type: application/*` and returned `ExceptionUnsupportedMediaType` (`SADT_RESOURCE/039`). The object was confirmed absent by the tester. The installed build matched the published class-only VSIX; this DDLS failure was outside its scope.
 
@@ -48,11 +48,23 @@ For `DDLS/DF`, the candidate now sends `application/vnd.sap.adt.ddlSource+xml` t
 
 The DDLS XML, language casing and owner handling are deliberately unchanged in this header-only candidate. No class includes or superclass references are added. Package and transport still come from the request context. An unsuccessful POST is not retried. A later deserialization error must be investigated separately against the DDLS transformation/Eclipse trace. This candidate has not yet passed a live DDLS creation test and does not claim to fix all object types.
 
+### DDLS candidate `.3`: owner contract
+
+After installing `.2`, the tester reported `SDDIC_ST_ADT_DDLS` deserialization failure from the ordinary creation wizard. This is a different stage from the earlier unsupported-media response. The tester could not obtain a new HTTP trace because the communication log showed no entries.
+
+Read-only inspection of the backend transformation chain established `SDDIC_ST_ADT_DDLS` → `SADT_ABAP_SOURCE_MAIN_OBJECT` → `SADT_MAIN_OBJECT`. The shared owner maps to `IF_ADT_TOOLS_CORE_TYPES=>TY_MAIN_OBJECT-RESPONSIBLE`, of DDIC type `RESPONSIBL`/domain `AS4USER`, `CHAR(12)`. The previously supplied request contained a login email longer than that field; the wizard and MCP creator both assign the login string to this attribute. This is a concrete contract violation, consistent with the deserialization error. Without the latest detailed exception or a successful controlled creation, the exact failing node and complete live fix remain unconfirmed.
+
+Patch 05 changes only DDLS owner serialization. Values exceeding 12 characters, including the reported login alias, are omitted, never truncated or replaced with a hardcoded user. Empty/blank owners are omitted too. Names that fit the field remain supported and retain the existing uppercase handling; no speculative character restrictions are added. The shared transformation makes this owner attribute conditional; omitting it leaves handling to the authenticated backend. The backend resource controller was also inspected read-only and defaults missing creation/change users to its authenticated user. No raw SAP implementation source or private identifiers are redistributed here.
+
+The DDLS media type from patch 04, root, namespace, language casing, master-system handling and package/transport inputs are unchanged. The candidate does not copy class includes, add speculative DDLS source types/templates, or retry creation. The tester also reported table and data-element unsupported-media failures in another probe; their HTTP trace/build identity was unavailable, and their contracts are not fixed by this DDLS change. No all-object fix is claimed.
+
 ### HTTP diagnostics
 
 Three issues hid failed responses: parsing an ADT exception dropped its raw HTTP response; the log converter dropped response body/headers; and the log record omitted its error marker. The patch preserves those details, including non-XML HTTP errors, and avoids inventing HTTP 501 for failures with no response.
 
 Authorization, proxy authorization, cookies and CSRF token headers are redacted before entries reach the log panel. The logger exports a safe error marker instead of the raw error/config/parent object. CSRF headers are redacted only after session-error classification so recovery behavior is preserved. Application data in bodies still needs review before sharing logs.
+
+Candidate `.3` also normalizes communication-log connection IDs to lowercase, matching the connection manager. Previously a configured name such as `DEV100` could miss a logger activated for URI authority `dev100`, silently dropping requests before the panel. Activation is still required after a window reload; opening the panel alone does not enable collection. This routing fix has regression tests, but its live effect on the tester's empty panel has not yet been verified.
 
 ## Source and dependency provenance
 
@@ -67,6 +79,7 @@ Authorization, proxy authorization, cookies and CSRF token headers are redacted 
 2. [Class V4 XML](../patches/source/02-class-v4-xml.patch): apply after 01; changes the XML/context and adds XML tests.
 3. [HTTP diagnostics](../patches/source/03-http-diagnostics.patch): independent of 01/02.
 4. [DDLS Content-Type](../patches/source/04-ddls-content-type.patch): apply after 01–03; header-only DDLS correction and regression tests.
+5. [DDLS owner](../patches/source/05-ddls-owner.patch): apply after 04; omit owners that violate the separate DDLS/common-core contract, with boundary and alias tests.
 
 The source patches apply to a clean API baseline. They are included for review and upstream contribution; the normal extension build needs only `pnpm install --frozen-lockfile` and `pnpm build`. No npm package or Marketplace publication is performed by this repository.
 
@@ -87,11 +100,13 @@ Creation through MCP already supports a noninteractive transport choice. Include
 
 To request a new transport, use `{"type":"new","description":"Synthetic integration test"}` instead. Transport creation requires an explicit user instruction and SAP permissions. The helper checks local-package requirements and existing locks. If `transportRequest` is omitted, creation can open the ordinary VS Code transport picker, leaving the MCP call waiting for user input. This behavior is separate from the V4 fix.
 
+Candidate `.3` retains the selected transport even when the ordinary UI picker is used. Previously the wrapper only captured a choice supplied through `additionalOptions.transportRequest`; a UI choice was lost from its result. The MCP formatter then incorrectly called an empty/undefined result “local — no transport required.” It now reports a number as **requested**, or says the backend assignment has not been verified. A selected or absent `corrNr` does not prove the final backend assignment. This explains the reporting defect; it does not establish which selection or backend mechanism produced any particular existing assignment. No transport was created, changed or released while preparing the fix.
+
 Multiple VS Code windows can run separate MCP servers. ABAP FS increments the requested port when it is occupied. A client configured for port 4847 can therefore still reach an older extension while a development host uses 4848. Use the actual endpoint displayed by the intended host; do not infer it from the window in which a chat was opened.
 
 ## Validation and limits
 
-The following results describe release `.1`. Candidate `.2` results are recorded in PATCH_CHANGELOG.md after verification. Verified locally on Node 24.13.0 with pnpm 12.4.1:
+The following results describe release `.1`. Current candidate results are recorded in PATCH_CHANGELOG.md. Verified locally on Node 24.13.0 with pnpm 12.4.1:
 
 - API typecheck and build: PASS. Jest: 19 suites, 298 tests PASS. Existing integration helpers return early without `ADT_URL`; those counts do not represent live SAP coverage.
 - Extension typecheck, build and VSIX packaging: PASS.
@@ -110,9 +125,9 @@ To roll back an installed patched build, reinstall the official 2.12.0 VSIX (usi
 
 ### Manual DDLS verification (requires separate SAP-write approval)
 
-1. Install the candidate only in an isolated profile/development host. Verify version `2.12.1` and its candidate display name; restart the MCP client and check its endpoint.
+1. Install the candidate only in an isolated profile/development host. Verify version `2.12.2` and its candidate display name; restart the MCP client and check its endpoint.
 2. Confirm the connection/system/client and inspect the selected test package configuration. Supply an existing transport only when required by that package; do not create or release a transport implicitly.
 3. Choose a fresh synthetic DDLS name, for example `ZI_ADT_MEDIA_TEST01`, verify that it is absent, and approve that exact creation before calling `abapfs_create_object` with `objectType: "DDLS/DF"` and explicit `packageName`. Do not reuse a business object as a diagnostic test.
-4. Inspect ADT Communication Log: exactly one POST to the DDLS collection, Content-Type `application/vnd.sap.adt.ddlSource+xml`, DDLS root/namespace and no class XML. Review the real HTTP status and response body, with credentials redacted.
+4. After reload, explicitly activate ADT Communication Log for the connection. First confirm that an ordinary read creates an entry. For an approved creation, inspect the log: exactly one POST to the DDLS collection, Content-Type `application/vnd.sap.adt.ddlSource+xml`, DDLS root/namespace, no overlength owner attribute and no class XML. Review the real HTTP status and response body, with credentials redacted.
 5. Read back metadata/source and inspect inactive objects after either success or failure. Do not retry an ambiguous POST. Activation and cleanup require their own authorized scope. This header test does not require uploading source or activating the object.
 6. If a transformation error follows, preserve the sanitized response and obtain the equivalent Eclipse DDLS creation trace before changing XML. Roll back by reinstalling the saved `.1` VSIX/official VSIX with `--force`, reload the window and reconnect MCP; verify the loaded version. Rolling back the extension does not remove SAP objects.

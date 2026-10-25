@@ -61,7 +61,7 @@ export class CallLogger {
   }
 
   public static get(connId: string) {
-    return this.instances.get(connId)!
+    return this.instances.get(connId.toLowerCase())!
   }
 
   private constructor(private connId: string) {
@@ -76,6 +76,8 @@ export class CallLogger {
     }
   }
   public static getOrCreate(connId: string) {
+    // Konfiguracja i URI mogą różnić się wielkością liter, jak w getClient.
+    connId = connId.toLowerCase()
     if (this.instances.has(connId)) return this.instances.get(connId)!
     const logger = new CallLogger(connId)
     this.instances.set(connId, logger)
@@ -97,7 +99,7 @@ export class CallLogger {
     logTelemetry("command_deactivate_comm_log_called")
     const folder = await pickAdtRoot()
     if (!folder || folder.uri.scheme !== ADTSCHEME) return
-    const connId = folder.uri.authority
+    const connId = folder.uri.authority.toLowerCase()
     const logger = this.instances.get(connId)
     if (!logger) return
     logger.activateServer(false)

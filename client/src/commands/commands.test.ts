@@ -95,7 +95,9 @@ vi.mock("../adt/operations/UnitTestRunner", () => ({
 }))
 
 vi.mock("../adt/AdtTransports", () => ({
-  selectTransport: vi.fn()
+  selectTransport: vi.fn(),
+  pickTransportProgrammatically: vi.fn(),
+  TransportPickerError: class TransportPickerError extends Error {}
 }))
 
 vi.mock("../adt/sapgui/sapgui", () => ({
@@ -214,6 +216,7 @@ import * as __$mock_adt_conections from "../adt/conections"
 import * as __$mock_adt_operations_AdtObjectCreator from "../adt/operations/AdtObjectCreator"
 import * as __$mock_adt_operations_AdtObjectFinder from "../adt/operations/AdtObjectFinder"
 import type { Mock, Mocked, MockedFunction } from "vitest"
+import { selectTransport, pickTransportProgrammatically } from "../adt/AdtTransports"
 
 const mockWindow = window as Mocked<typeof window>
 const mockGetRoot = getRoot as MockedFunction<typeof getRoot>
@@ -365,6 +368,46 @@ describe("disconnectAdtServer", () => {
 })
 
 describe("createAdtObjectProgrammatically", () => {
+  test.each(["ui", "programmatic"])("returns the transport selected through %s", async mode => {
+    const selection = { cancelled: false, transport: "DEVK900123" }
+    vi.mocked(selectTransport).mockResolvedValue(selection)
+    vi.mocked(pickTransportProgrammatically).mockResolvedValue(selection)
+    const object = {
+      name: "ZEXAMPLE",
+      type: "DEVC/K",
+      path: "/sap/bc/adt/packages/zexample",
+      loadStructure: vi.fn()
+    }
+    const createObject = vi.fn(async (_uri, picker) => {
+      await picker("/sap/bc/adt/packages/zexample", "ZEXAMPLE", "")
+      return object
+    })
+    vi.mocked(__$mock_adt_operations_AdtObjectCreator.AdtObjectCreator).mockImplementationOnce(
+      function () {
+        return { createObject } as any
+      }
+    )
+    const result = await AdtCommands.createAdtObjectProgrammatically(
+      "DEVC/K",
+      "ZEXAMPLE",
+      "Example package",
+      "ZEXAMPLE",
+      undefined,
+      "dev100",
+      mode === "programmatic"
+        ? { transportRequest: { type: "existing", number: "DEVK900123" } }
+        : undefined
+    )
+    expect(result).toMatchObject({ success: true, transport: "DEVK900123" })
+    if (mode === "ui") {
+      expect(selectTransport).toHaveBeenCalledOnce()
+      expect(pickTransportProgrammatically).not.toHaveBeenCalled()
+    } else {
+      expect(pickTransportProgrammatically).toHaveBeenCalledOnce()
+      expect(selectTransport).not.toHaveBeenCalled()
+    }
+  })
+
   test("requires a parent function group when creating function modules", async () => {
     const result = await AdtCommands.createAdtObjectProgrammatically(
       "FUGR/FF" as any,

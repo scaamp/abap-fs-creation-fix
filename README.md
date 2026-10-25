@@ -5,7 +5,7 @@
 >
 > **[Download the ready-to-install VSIX](https://github.com/scaamp/abap-fs-creation-fix/releases/latest)** · **[Changes, installation, MCP setup and rollback](docs/adt-creation-fix.md)**
 >
-> **DDLS test candidate:** [creation fix 2](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.1-adt-creation-fix.2-candidate) changes the DDLS creation Content-Type separately. It passes local tests but has not yet been verified by creating DDLS in SAP. The stable `.1` release below fixes classes only.
+> **DDLS test candidate:** [creation fix 3](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.2-adt-creation-fix.3-candidate) adds DDLS owner validation, communication-log connection routing and truthful MCP transport reporting. Header-only candidate `.2` was reported to fail DDLS deserialization. Candidate `.3` is locally tested and still requires live DDLS verification. Stable `.1` fixes classes only; table/data-element creation is not claimed as fixed.
 >
 > This build fixes class creation on systems advertising ADT class V4 and preserves sanitized HTTP error details. Class creation was verified in an Extension Development Host; successful MCP class creation was reported by the tester. DDLS creation is a separate contract and is not claimed as fixed. This is an independent repository, not an official release or a GitHub fork relationship.
 
