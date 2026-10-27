@@ -3,13 +3,17 @@
 > **Unofficial patched distribution maintained by [scaamp](https://github.com/scaamp).**
 > Based on [marcellourbani/vscode_abap_remote_fs](https://github.com/marcellourbani/vscode_abap_remote_fs) 2.12.0 and [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) 9.2.0, under their original MIT licenses.
 >
-> **[Download the ready-to-install VSIX](https://github.com/scaamp/abap-fs-creation-fix/releases/latest)** · **[Changes, installation, MCP setup and rollback](docs/adt-creation-fix.md)**
+> **[Download 2.13.2 MCP preview 3: abapGit + OData](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.13.2-mcp-preview.3)** · **[Stable creation fix 5 / 2.12.4](https://github.com/scaamp/abap-fs-creation-fix/releases/tag/v2.12.4-adt-creation-fix.5)** · **[Creation fixes and rollback](docs/adt-creation-fix.md)**
 >
 > **Creation fix 5 (extension 2.12.4):** local Cloud packages with `recordChanges=false` now skip transport selection in the wizard and MCP, including request creation. The existing ADT XML/media fixes are retained. See the [installation guide](docs/adt-creation-fix.md) and [creation audit](docs/adt-creation-matrix.md) for validation scope and backend authorization limits.
 >
 > This is an independent repository, not an official release or a GitHub fork relationship. Earlier releases and their verification limits remain documented in [PATCH_CHANGELOG.md](PATCH_CHANGELOG.md).
 
-Potential future development: [MCP feature assessment — value, priorities, existing foundations and limitations (Polish)](docs/potential-mcp-features.md). These are proposals, not implemented capabilities.
+Potential future development: [MCP feature assessment — value, priorities, existing foundations and limitations (Polish)](docs/potential-mcp-features.md). This historical proposal catalogue is separate from the implemented preview subset described below.
+
+Development preview **2.13.2** includes [eight abapGit MCP tools and explicit credential setup](docs/version-control/abapgit.md#mcp-tools-2130-preview) and [three bounded OData V4 read tools](docs/odata-read-tools.md). It is separate from the stable v5 download above. The OData preview uses a connected same-origin Cloud OAuth profile; it does not expose writes. Standalone Git commit, full Git fetch, merge and SAP import are not exposed.
+
+**Validated live:** one reviewed abapGit commit+push, independently confirmed on GitHub with exactly two selected fixture files; authenticated OData metadata, three collection reads and a two-navigation expansion returned HTTP 200. Local build/typecheck and **4462 tests** passed. See [validation, limits, installation and rollback](docs/mcp-preview-validation.md). Install from VSIX in the intended profile and **reload the window** before reconnecting MCP. For Git authentication run **ABAP FS: Configure abapGit credentials**; never put tokens in a chat or tool arguments.
 
 **A VS Code extension that gives AI assistants real, live access to your SAP system — reads actual code, queries live tables, runs tests, debugs, and understands your custom objects.**
 

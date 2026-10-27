@@ -122,6 +122,12 @@ describe("isMcpExposedTool", () => {
     expect(isMcpExposedTool(edit, true)).toBe(true)
     expect(isMcpExposedTool(edit, false)).toBe(false)
     expect(isMcpExposedTool(read, false)).toBe(true)
+    const push = { name: "abapfs_abapgit_commit_and_push", tags: ["abap-fs"] }
+    expect(isMcpExposedTool(push, false)).toBe(false)
+    expect(isMcpExposedTool(push, true)).toBe(true)
+    expect(
+      isMcpExposedTool({ name: "abapfs_abapgit_prepare_commit", tags: ["abap-fs"] }, false)
+    ).toBe(true)
   })
 })
 

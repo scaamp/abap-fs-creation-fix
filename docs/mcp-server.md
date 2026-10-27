@@ -1,5 +1,7 @@
 # MCP Server for External AI Tools
 
+Patched development builds additionally document [abapGit tools](version-control/abapgit.md#mcp-tools-2130-preview) and the [bounded OData V4 read preview](odata-read-tools.md). Availability depends on the installed build; stable creation fix 5 does not contain these preview tools.
+
 > **Prerequisites:** Complete the [Installation Steps](getting-started/installation.md) first. You need VS Code with ABAP FS installed and configured with at least one SAP system connection.
 
 > **Note:** ABAP FS has 40+ AI tools. When using GitHub Copilot in VS Code, all tools are available natively once a SAP system is connected — no MCP server needed. The MCP server is only for external AI clients.

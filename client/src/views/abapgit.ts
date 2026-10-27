@@ -112,8 +112,7 @@ class AbapGit {
     const servers: ServerItem[] = []
     const nogits: NoGitItem[] = []
     const folders = (workspace.workspaceFolders || []).filter(f => f.uri.scheme === ADTSCHEME)
-    for (const f of folders) {
-      const connId = f.uri.authority
+    for (const connId of new Set(folders.map(f => f.uri.authority.toLowerCase()))) {
       await getOrCreateClient(connId)
       try {
         if (await getClient(connId).featureDetails("abapGit Repositories"))
@@ -187,9 +186,49 @@ class AbapGitProvider implements TreeDataProvider<TreeItem> {
     env.openExternal(Uri.parse(repoItem.repo.url))
   }
 
-  private addScm(repoItem: AbapGitItem) {
-    const connId = this.repoServer(repoItem).connId
-    addRepo(connId, repoItem.repo, true)
+  private async addScm(repoItem: AbapGitItem) {
+    try {
+      const connId = this.repoServer(repoItem).connId
+      await addRepo(connId, repoItem.repo, true)
+      await commands.executeCommand("workbench.view.scm")
+    } catch {
+      await window.showErrorMessage(
+        "Could not load abapGit changes. Check the SAP connection and repository access, then register the repository again."
+      )
+    }
+  }
+
+  // Jawny setup w UI; sekret pozostaje w SecretStorage i nie wymaga próby push.
+  public async configureCredentials() {
+    try {
+      const [servers] = await this.git.getGitEnabledServers()
+      const items = servers.flatMap(server =>
+        server.children.map(item => ({
+          label: `${server.connId} / ${item.repo.sapPackage}`,
+          description: item.repo.url,
+          repo: item.repo
+        }))
+      )
+      if (!items.length) {
+        await window.showInformationMessage(
+          "No linked abapGit repositories found. Connect a SAP workspace first."
+        )
+        return
+      }
+      const selected = await quickPick(items, {
+        placeHolder: "Select the abapGit repository for Git credentials"
+      })()
+      if (!isRight(selected)) return
+      const credentials = await repoCredentials(selected.right.repo.url)
+      if (isSome(credentials))
+        await window.showInformationMessage(
+          "Git credentials saved for this repository. No commit, push, pull or activation was performed."
+        )
+    } catch {
+      await window.showErrorMessage(
+        "Could not configure abapGit credentials. Check the SAP connection and try again."
+      )
+    }
   }
 
   private async pull(repoItem: AbapGitItem) {
@@ -363,6 +402,11 @@ class AbapGitProvider implements TreeDataProvider<TreeItem> {
   @command(AbapFsCommands.agitAddScm)
   private static addScmCommand(repoItem: AbapGitItem) {
     return AbapGitProvider.get().addScm(repoItem)
+  }
+
+  @command(AbapFsCommands.agitConfigureCredentials)
+  private static configureCredentialsCommand() {
+    return AbapGitProvider.get().configureCredentials()
   }
 }
 

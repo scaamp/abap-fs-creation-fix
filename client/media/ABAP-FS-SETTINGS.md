@@ -151,7 +151,7 @@ The MCP (Model Context Protocol) server allows external AI tools like Cursor, Cl
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `exposeEditTool` | boolean | `true` | Offer the `replace_string_in_abap_object` edit tool to MCP clients and Agent Chat agents. When `false`, they get all other ABAP FS tools (read-only access); Agent Chat agents can still edit with their own file tools. Copilot in VS Code always has the tool. Applies to new MCP sessions. |
+| `exposeEditTool` | boolean | `true` | Offer source replacement and reviewed abapGit commit+push to MCP clients and Agent Chat agents. When `false`, hide these two tools. Other write tools can remain available; this is not a global read-only policy. Copilot retains native access. Exposure changes apply to new MCP sessions; abapGit commit+push also checks this setting when invoked. |
 
 **Example:**
 ```json

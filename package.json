@@ -1,8 +1,8 @@
 {
   "name": "vscode-abap-remote-fs",
-  "displayName": "ABAP remote filesystem (ADT creation fix 5)",
+  "displayName": "ABAP remote filesystem (MCP preview 3: abapGit setup fix)",
   "description": "VS Code-based Agentic AI Platform for SAP ABAP Development",
-  "version": "2.12.4",
+  "version": "2.13.2",
   "publisher": "murbani",
   "publishConfig": {
     "access": "restricted",
@@ -4205,6 +4205,548 @@
           ]
         },
         "when": "abapfs:extensionActive && abapfs:testingEnabled && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_capabilities",
+        "displayName": "Inspect abapGit capabilities",
+        "modelDescription": "Read advertised links and adapter limits for an existing SAP abapGit repository. No standalone commit, Git object fetch or merge endpoint is implemented; remote refs are supported. No import, branch switch, commit or push occurs. Advertisement does not prove authorization.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_capabilities",
+        "icon": "$(git-branch)",
+        "userDescription": "Inspect abapGit capabilities",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_repositories",
+        "displayName": "List SAP abapGit repositories",
+        "modelDescription": "List linked abapGit repositories from SAP: exact repo IDs, packages, URLs, branches and advertised preview/push links. Does not create or link repositories. Use these backend IDs in other abapGit tools.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_repositories",
+        "icon": "$(git-branch)",
+        "userDescription": "List SAP abapGit repositories",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            }
+          },
+          "required": [
+            "connectionId"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_status",
+        "displayName": "Read abapGit serialized change status",
+        "modelDescription": "Read backend staged, unstaged and ignored serialized files. Does not stage, activate, commit, push or import. Changes in inactive SAP sources or unsaved editors may differ from the serialization. Git authentication uses existing VS Code secret storage; no hidden credential prompts.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_status",
+        "icon": "$(git-branch)",
+        "userDescription": "Read abapGit serialized change status",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_diff",
+        "displayName": "Preview abapGit file versions",
+        "modelDescription": "Read complete local and remote abapGit-serialized versions of explicitly selected files. A null version denotes an absent version, not an empty file. This is serialization-level diff input, not an ADT editor diff. Bounded to 50 files, 128 KiB per version and 512 KiB total. No staging or write.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_diff",
+        "icon": "$(git-branch)",
+        "userDescription": "Preview abapGit file versions",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact serialized file path from status."
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact file name from status."
+                  }
+                },
+                "required": [
+                  "path",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId",
+            "files"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_remote_refs",
+        "displayName": "Read remote Git branches and SHAs via SAP",
+        "modelDescription": "Read remote refs using the SAP abapGit external repository info API. Does not fetch Git objects into a local checkout, merge, pull, switch branches or change SAP source. Uses stored Git credentials, never password/token tool arguments.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_remote_refs",
+        "icon": "$(git-branch)",
+        "userDescription": "Read remote Git branches and SHAs via SAP",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_prepare_commit",
+        "displayName": "Prepare an exact ABAP commit review",
+        "modelDescription": "Prepare an in-memory, single-use 10-minute commit+push review with exact files, full serialized versions, explicit message/identities, content hashes and target remote SHA. No commit, push, import or activation occurs. Show the review and obtain user authorization for this exact change before commit_and_push. No wildcard selection. Deletions require allowDeletions=true. Configure Git credentials in the ABAP FS panel beforehand.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_prepare_commit",
+        "icon": "$(git-branch)",
+        "userDescription": "Prepare an exact ABAP commit review",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact serialized file path from status."
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact file name from status."
+                  }
+                },
+                "required": [
+                  "path",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "author": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Author or committer display name."
+                },
+                "email": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Valid commit identity email; not a credential."
+                }
+              },
+              "required": [
+                "name",
+                "email"
+              ],
+              "additionalProperties": false
+            },
+            "committer": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Author or committer display name."
+                },
+                "email": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Valid commit identity email; not a credential."
+                }
+              },
+              "required": [
+                "name",
+                "email"
+              ],
+              "additionalProperties": false
+            },
+            "allowDeletions": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId",
+            "files",
+            "message",
+            "author"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_commit_and_push",
+        "displayName": "Commit and push a reviewed ABAP change",
+        "modelDescription": "WRITE OPERATION: combined backend commit+push, not a standalone local commit. Only invoke after user authorization of the exact prepare_commit review. Requires confirm=true and its unexpired single-use reviewId bound to connection/repository. Rechecks staging, serialized contents and remote SHA before POST. No automatic retry. Result accepted means backend acceptance, not verified completion; reconcile using operation, remote_refs and status. This API cannot guarantee atomic compare-and-swap against other clients. Does not activate or import SAP objects.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_commit_and_push",
+        "icon": "$(git-branch)",
+        "userDescription": "Commit and push a reviewed ABAP change",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            },
+            "reviewId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Single-use review ID returned by prepare_commit."
+            },
+            "confirm": {
+              "type": "boolean",
+              "enum": [
+                true
+              ],
+              "description": "True only after authorization of this exact reviewed commit+push."
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId",
+            "reviewId",
+            "confirm"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_abapgit_operation",
+        "displayName": "Read recorded abapGit push attempts",
+        "modelDescription": "Read locally persisted attempt metadata scoped to connection/repository. Omit operationId to find attempts after a timeout or extension restart. unknown must be reconciled by reading remote_refs/status; never blindly retry commit+push. accepted records backend acceptance, not verified remote completion. No SAP or Git writes.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_abapgit_operation",
+        "icon": "$(git-branch)",
+        "userDescription": "Read recorded abapGit push attempts",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Explicit SAP connection ID."
+            },
+            "repoId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact backend repository ID returned by abapfs_abapgit_repositories, not a package name or GitHub ID."
+            },
+            "operationId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Optional exact attempt ID."
+            }
+          },
+          "required": [
+            "connectionId",
+            "repoId"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_odata_resolve_service",
+        "displayName": "Resolve an existing OData V4 service",
+        "modelDescription": "Read an active published ABAP service binding and actual backend runtime URL. Same-origin OData V4 XML preview using an already connected Cloud OAuth profile; other authentication modes and separate API hosts are not supported yet. Returns an expiring serviceRef. Never publishes, activates or changes SAP objects. Do not guess runtime URLs.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_odata_resolve_service",
+        "icon": "$(cloud)",
+        "userDescription": "Resolve an existing OData V4 service",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Existing connected Cloud OAuth SAP connection ID. Initial preview uses its same-origin authenticated context; no passwords or tokens."
+            },
+            "bindingName": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Existing SRVB service binding name, not the service definition name."
+            },
+            "serviceVersion": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Optional exact ADT serviceVersion when the binding contains multiple versions."
+            }
+          },
+          "required": [
+            "connectionId",
+            "bindingName"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_odata_get_metadata",
+        "displayName": "Read OData V4 metadata",
+        "modelDescription": "GET runtime $metadata using a serviceRef. Returns a normalized single-document XML CSDL model: entity sets, keys, scalar property types and direct navigations. No external schema fetching. Declared fields and successful metadata access do not prove all data permissions. Uses the active connected OAuth context; references expire on restart/reconnect. No SAP writes.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_odata_get_metadata",
+        "icon": "$(cloud)",
+        "userDescription": "Read OData V4 metadata",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Existing connected Cloud OAuth SAP connection ID. Initial preview uses its same-origin authenticated context; no passwords or tokens."
+            },
+            "serviceRef": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Opaque reference returned by resolve_service. Bound to the connection/client; expires in 15 minutes or on restart/reconnect."
+            }
+          },
+          "required": [
+            "connectionId",
+            "serviceRef"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
+      },
+      {
+        "name": "abapfs_odata_query",
+        "displayName": "Read bounded OData V4 data",
+        "modelDescription": "Read an entity collection from a resolved service. Explicit select is mandatory; top defaults to 5 and cannot exceed 20. Supports at most two one-level expansions with explicit select and collection top 1..5 (default 1). Refreshes metadata first. No arbitrary URL/headers, filters, keyed paths, actions, functions, paging or writes. Never follows next links; hasMore/expandedHasMore report remaining data. Responses are bounded to 512 KiB, redirects disabled, Decimal/Int64 require IEEE754 string representation. Returned rows can contain business data: request only authorized fields.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "abapfs_odata_query",
+        "icon": "$(cloud)",
+        "userDescription": "Read bounded OData V4 data",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Existing connected Cloud OAuth SAP connection ID. Initial preview uses its same-origin authenticated context; no passwords or tokens."
+            },
+            "serviceRef": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Opaque reference returned by resolve_service. Bound to the connection/client; expires in 15 minutes or on restart/reconnect."
+            },
+            "entitySet": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact entity set name returned by get_metadata."
+            },
+            "select": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              },
+              "description": "Explicit simple scalar property names from get_metadata. Wildcards, stream/binary and complex values are not supported."
+            },
+            "top": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 5
+            },
+            "expand": {
+              "type": "array",
+              "maxItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "navigation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Declared direct navigation name."
+                  },
+                  "select": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Explicit simple scalar property names from get_metadata. Wildcards, stream/binary and complex values are not supported."
+                  },
+                  "top": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "Collection only; defaults to 1. Omit for single-valued navigation."
+                  }
+                },
+                "required": [
+                  "navigation",
+                  "select"
+                ]
+              }
+            }
+          },
+          "required": [
+            "connectionId",
+            "serviceRef",
+            "entitySet",
+            "select"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "abap-fs"
+        ],
+        "when": "abapfs:extensionActive && !abapfs:noSapConnected"
       }
     ],
     "commands": [
@@ -4688,6 +5230,12 @@
           "dark": "client/images/dark/icon-repo.svg",
           "light": "client/images/light/icon-repo.svg"
         }
+      },
+      {
+        "command": "abapfs.configureAbapGitCredentials",
+        "title": "Configure abapGit credentials",
+        "category": "ABAP FS",
+        "icon": "$(key)"
       },
       {
         "command": "abapfs.refreshAbapGit",
@@ -5812,6 +6360,11 @@
           "when": "view == abapfs.abapgit && viewItem == repository || view == abapfs.abapgit && viewItem == repository_push"
         },
         {
+          "command": "abapfs.configureAbapGitCredentials",
+          "group": "context",
+          "when": "view == abapfs.abapgit && viewItem == repository || view == abapfs.abapgit && viewItem == repository_push"
+        },
+        {
           "command": "abapfs.atcRequestExemption",
           "group": "inline",
           "when": "view == abapfs.atcFinds && viewItem == finding"
@@ -6844,7 +7397,7 @@
         "abapfs.mcpServer.exposeEditTool": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Offer the `replace_string_in_abap_object` edit tool to MCP clients and Agent Chat agents. Turn off to give them read-only ABAP FS tools; agents in Agent Chat can still edit with their own file tools. Copilot in VS Code always has the tool. Applies to new MCP sessions."
+          "markdownDescription": "Offer source replacement and reviewed abapGit commit+push to MCP clients and Agent Chat agents. Turn off to hide these two tools. Other write tools can remain available; this is not a global read-only policy. Copilot in VS Code retains native tool access. Exposure changes apply to new MCP sessions; abapGit commit+push also checks this setting when invoked."
         },
         "abapfs.autoOpenUnsupportedInGui": {
           "type": "boolean",

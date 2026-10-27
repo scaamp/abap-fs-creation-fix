@@ -1,0 +1,41 @@
+--- a/src/AdtHTTP.ts
++++ b/src/AdtHTTP.ts
+@@ -78,6 +78,9 @@
+ }
+ 
+ export interface ClientOptions {
++  /** Optional per-request Node transport limits, useful for scoped read-only clients. */
++  maxRedirects?: number
++  maxContentLength?: number
+   headers?: Record<string, string>
+   httpsAgent?: https.Agent
+   baseURL?: string
+--- a/src/AxiosHttpClient.ts
++++ b/src/AxiosHttpClient.ts
+@@ -30,6 +30,8 @@
+     params: options.qs,
+     httpsAgent: options.httpsAgent,
+     timeout: options.timeout,
++    maxRedirects: options.maxRedirects,
++    maxContentLength: options.maxContentLength,
+     auth: options.auth,
+     data: options.body,
+     adtRequestNumber: options.adtRequestNumber,
+--- /dev/null
++++ b/src/AxiosHttpClient.test.ts
+@@ -0,0 +1,15 @@
++import axios from "axios"
++import { AxiosHttpClient } from "./AxiosHttpClient"
++
++test("passes optional response and redirect bounds without changing defaults for existing callers", async () => {
++  const request = jest.fn().mockResolvedValue({ data: "<ok/>", status: 200, statusText: "OK", headers: {} })
++  const create = jest.spyOn(axios, "create").mockReturnValue({ request } as unknown as ReturnType<typeof axios.create>)
++  try {
++    const client = new AxiosHttpClient("https://example.invalid")
++    await client.request({url:"/sap/example",method:"GET",maxRedirects:0,maxContentLength:1024})
++    expect(request.mock.calls[0][0]).toMatchObject({method:"GET",maxRedirects:0,maxContentLength:1024})
++    await client.request({url:"/sap/legacy"})
++    expect(request.mock.calls[1][0].maxRedirects).toBeUndefined()
++    expect(request.mock.calls[1][0].maxContentLength).toBeUndefined()
++  } finally { create.mockRestore() }
++})

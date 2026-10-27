@@ -11,6 +11,105 @@ index b94f42c2e5adb892ac307a98555a70725217197f..cad6df71dfd12994281b1667a1eb8a84
  };
  exports.fromResponse = fromResponse;
  const fromError = (error) => {
+diff --git a/build/AdtHTTP.d.ts b/build/AdtHTTP.d.ts
+index 79992bbd392840ef39466204f0a99ce8754f0f18..7b94cc11f1ad9b0c06a3d8321bda40eb5d92fbbe 100644
+--- a/build/AdtHTTP.d.ts
++++ b/build/AdtHTTP.d.ts
+@@ -17,6 +17,9 @@ export interface BasicCredentials {
+     password: string;
+ }
+ export interface ClientOptions {
++    /** Optional per-request Node transport limits, useful for scoped read-only clients. */
++    maxRedirects?: number;
++    maxContentLength?: number;
+     headers?: Record<string, string>;
+     httpsAgent?: https.Agent;
+     baseURL?: string;
+diff --git a/build/AxiosHttpClient.js b/build/AxiosHttpClient.js
+index cf3bc0940b9cb4d08c64d4491dea07b9a731e3d1..c57e4b815483a14939f8e5598f938cda638921e9 100644
+--- a/build/AxiosHttpClient.js
++++ b/build/AxiosHttpClient.js
+@@ -45,6 +45,8 @@ const toAxiosConfig = (options) => {
+         params: options.qs,
+         httpsAgent: options.httpsAgent,
+         timeout: options.timeout,
++        maxRedirects: options.maxRedirects,
++        maxContentLength: options.maxContentLength,
+         auth: options.auth,
+         data: options.body,
+         adtRequestNumber: options.adtRequestNumber,
+diff --git a/build/api/abapgit.js b/build/api/abapgit.js
+index 0972ab7b1d78fbc6fc061db2f40f75eadd2ced68..a88914596dde4f88e350b940ce204175e5725532 100644
+--- a/build/api/abapgit.js
++++ b/build/api/abapgit.js
+@@ -64,9 +64,9 @@ async function externalRepoInfo(h, repourl, user = "", password = "") {
+     };
+     const body = `<?xml version="1.0" ?>
+   <abapgitexternalrepo:externalRepoInfoRequest xmlns:abapgitexternalrepo="http://www.sap.com/adt/abapgit/externalRepo">
+-    <abapgitexternalrepo:url>${repourl}</abapgitexternalrepo:url>
+-    <abapgitexternalrepo:user>${user}</abapgitexternalrepo:user>
+-    <abapgitexternalrepo:password>${password}</abapgitexternalrepo:password>
++    <abapgitexternalrepo:url>${(0, utilities_1.encodeEntity)(repourl)}</abapgitexternalrepo:url>
++    <abapgitexternalrepo:user>${(0, utilities_1.encodeEntity)(user)}</abapgitexternalrepo:user>
++    <abapgitexternalrepo:password>${(0, utilities_1.encodeEntity)(password)}</abapgitexternalrepo:password>
+   </abapgitexternalrepo:externalRepoInfoRequest>`;
+     const response = await h.request(`/sap/bc/adt/abapgit/externalrepoinfo`, {
+         method: "POST", // encodeEntity?
+@@ -148,7 +148,7 @@ async function unlinkRepo(h, repoId) {
+     });
+ }
+ const deserializeStaging = (body) => {
+-    const raw = (0, utilities_1.xmlNode)((0, utilities_1.fullParse)(body), "abapgitstaging:abapgitstaging");
++    const raw = (0, utilities_1.xmlNode)((0, utilities_1.fullParse)(body, { htmlEntities: true }), "abapgitstaging:abapgitstaging");
+     const parsefile = (x) => ({
+         ...(0, utilities_1.stripNs)((0, utilities_1.xmlNodeAttr)(x)),
+         links: (0, utilities_1.xmlArray)(x, "atom:link")
+@@ -168,7 +168,7 @@ const deserializeStaging = (body) => {
+     const extractUser = (p) => (0, utilities_1.stripNs)((0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(commentNode, p)));
+     const comment = commentNode["@_abapgitstaging:comment"] || "";
+     const author = extractUser("abapgitstaging:author");
+-    const committer = extractUser("abapgitstaging:author");
++    const committer = extractUser("abapgitstaging:committer");
+     const result = {
+         staged,
+         unstaged,
+@@ -180,17 +180,19 @@ const deserializeStaging = (body) => {
+     return result;
+ };
+ const serializeStaging = (s) => {
++    const attribute = (value) => (0, utilities_1.encodeEntity)(value)
++        .replace(/\r/g, "&#13;").replace(/\n/g, "&#10;").replace(/\t/g, "&#9;");
++    const attributes = (values, prefix) => (0, utilities_1.toXmlAttributes)(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, attribute(String(value))])), prefix);
+     const formatFile = (f) => {
+         const { links, ...rest } = f;
+-        return `  <abapgitstaging:abapgitfile ${(0, utilities_1.toXmlAttributes)(rest, "abapgitstaging")}>${links
+-            .map((l) => ({ ...l, href: (0, utilities_1.encodeEntity)(l.href) }))
+-            .map((l) => `<atom:link ${(0, utilities_1.toXmlAttributes)(l, "")}/>`)
++        return `  <abapgitstaging:abapgitfile ${attributes(rest, "abapgitstaging")}>${links
++            .map((l) => `<atom:link ${attributes(l, "")}/>`)
+             .join("")}
+   </abapgitstaging:abapgitfile>`;
+     };
+     const formatObject = (obj) => {
+         const { abapGitFiles, wbkey, ...rest } = obj;
+-        return `<abapgitstaging:abapgitobject ${(0, utilities_1.toXmlAttributes)(rest, "adtcore")} abapgitstaging:wbkey="${obj.wbkey}">
++        return `<abapgitstaging:abapgitobject ${attributes(rest, "adtcore")} abapgitstaging:wbkey="${attribute(obj.wbkey)}">
+     ${obj.abapGitFiles.map(formatFile).join("")}
+  </abapgitstaging:abapgitobject>`;
+     };
+@@ -202,9 +204,9 @@ const serializeStaging = (s) => {
+     const unstaged = formatObjects(s.unstaged, "abapgitstaging:unstaged_objects");
+     const staged = formatObjects(s.staged, "abapgitstaging:staged_objects");
+     const ignored = formatObjects(s.ignored, "abapgitstaging:ignored_objects");
+-    const comment = `<abapgitstaging:abapgit_comment abapgitstaging:comment="${s.comment}">
+-  <abapgitstaging:author abapgitstaging:name="${s.author.name}" abapgitstaging:email="${s.author.email}"/>
+-  <abapgitstaging:committer abapgitstaging:name="${s.committer.name}" abapgitstaging:email="${s.committer.email}"/>
++    const comment = `<abapgitstaging:abapgit_comment abapgitstaging:comment="${attribute(s.comment)}">
++  <abapgitstaging:author abapgitstaging:name="${attribute(s.author.name)}" abapgitstaging:email="${attribute(s.author.email)}"/>
++  <abapgitstaging:committer abapgitstaging:name="${attribute(s.committer.name)}" abapgitstaging:email="${attribute(s.committer.email)}"/>
+ </abapgitstaging:abapgit_comment>
+ `;
+     return `<?xml version="1.0" encoding="UTF-8"?>
 diff --git a/build/api/objectcreator.d.ts b/build/api/objectcreator.d.ts
 index 89333f5e388380ad62ae79e9e840097b4efe8c83..def9ea383ceabc209718fb55252bd74fd3e48223 100644
 --- a/build/api/objectcreator.d.ts
@@ -188,7 +287,7 @@ index 7e28ddf0936c72d1deaee06bed952845adedd728..6e553ba285e5b81357821ea8b2bdd7c8
          qs
      });
 diff --git a/build/requestLogger.js b/build/requestLogger.js
-index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..142cb4f6db9c62f094c7ffe628e15e57b0a13467 100644
+index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..67014b3ed94d55173edb6929033e3397b86c38c9 100644
 --- a/build/requestLogger.js
 +++ b/build/requestLogger.js
 @@ -7,13 +7,16 @@ exports.logResponse = exports.logError = exports.redactSensitiveHeaders = void 0
@@ -197,7 +296,7 @@ index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..142cb4f6db9c62f094c7ffe628e15e57
  const utilities_1 = require("./utilities");
 -const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization)$/i;
 +const AdtHTTP_1 = require("./AdtHTTP");
-+const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization|proxy-authorization)$/i;
++const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization|proxy-authorization|username|password)$/i;
  const redactSensitiveHeaders = (headers) => headers &&
      Object.fromEntries(Object.entries(headers).map(([k, v]) => [
          k,
@@ -220,16 +319,22 @@ index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..142cb4f6db9c62f094c7ffe628e15e57
  };
  const convertRequest = (original) => {
      if (!(0, utilities_1.isObject)(original))
-@@ -39,7 +44,7 @@ const convertRequest = (original) => {
+@@ -39,16 +44,20 @@ const convertRequest = (original) => {
          method: method || "GET",
          uri: (0, utilities_1.isString)(url) ? url : "",
          params: (0, utilities_1.isObject)(qs) ? { ...qs } : {},
 -        headers: (0, utilities_1.isObject)(headers) ? { ...headers } : {},
+-        body: (0, utilities_1.isString)(body) || (0, utilities_1.isUndefined)(body) ? body : JSON.stringify(body)
 +        headers: (0, utilities_1.isObject)(headers) ? redactLogHeaders({ ...headers }) : {},
-         body: (0, utilities_1.isString)(body) || (0, utilities_1.isUndefined)(body) ? body : JSON.stringify(body)
++        body: redactGitBody((0, utilities_1.isString)(url) ? url : "", (0, utilities_1.isString)(body) || (0, utilities_1.isUndefined)(body) ? body : JSON.stringify(body))
      };
  };
-@@ -48,7 +53,7 @@ const convertAxiosResponse = (original) => {
++// abapGit przekazuje Git PAT także w XML, niezależnie od nagłówków sesji ADT.
++const redactGitBody = (url, body) => /\/abapgit\//i.test(url) && body
++    ? body.replace(/(<(?:[\w.-]+:)?(?:password|remotePassword)\b[^>]*>)[\s\S]*?(<\/(?:[\w.-]+:)?(?:password|remotePassword)>)/gi, "$1[redacted]$2")
++    : body;
+ const convertAxiosResponse = (original) => {
+     if (!original)
          return { headers: {}, statusCode: 0, statusMessage: "" };
      const { headers, data, status, statusText } = original;
      return {
@@ -238,7 +343,7 @@ index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..142cb4f6db9c62f094c7ffe628e15e57
          statusCode: status,
          statusMessage: statusText,
          body: (0, utilities_1.isString)(data) ? data : JSON.stringify(data)
-@@ -58,9 +63,15 @@ const convertResponse = (original) => {
+@@ -58,9 +67,15 @@ const convertResponse = (original) => {
      if (!original)
          return { headers: {}, statusCode: 0, statusMessage: "" };
      if ((0, _1.isAdtException)(original)) {
@@ -255,7 +360,7 @@ index 5f6605e9793e6d1e354e17c7323e86ff7ad4a149..142cb4f6db9c62f094c7ffe628e15e57
              statusMessage: original.message
          };
          return resp;
-@@ -68,7 +79,7 @@ const convertResponse = (original) => {
+@@ -68,7 +83,7 @@ const convertResponse = (original) => {
      else {
          const { headers, body, status, statusText } = original;
          return {

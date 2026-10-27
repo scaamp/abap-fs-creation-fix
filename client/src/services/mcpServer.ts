@@ -209,7 +209,7 @@ export function jsonSchemaToZod(
 
 // Tag used to identify ABAP FS tools
 const ABAP_FS_TAG = "abap-fs"
-const EDIT_TOOL_NAMES = new Set(["replace_string_in_abap_object"])
+const EDIT_TOOL_NAMES = new Set(["replace_string_in_abap_object", "abapfs_abapgit_commit_and_push"])
 
 export function isMcpExposedTool(
   tool: { name: string; tags: readonly string[] },

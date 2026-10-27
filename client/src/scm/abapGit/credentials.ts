@@ -20,8 +20,8 @@ const getUserStore = () => {
 }
 export const getDefaultUser = (repoUrl: string) => `${getUserStore().get(repoUrl) || ""}`
 
-const setDefaultUser = (repoUrl: string) => (cred: ScmCredentials) => {
-  getUserStore().update(repoUrl, cred.user)
+const setDefaultUser = (repoUrl: string) => async (cred: ScmCredentials) => {
+  await getUserStore().update(repoUrl, cred.user)
   return cred
 }
 
@@ -42,8 +42,8 @@ export async function repoCredentials(repoUrl: string) {
     if (x.user) x.password = (await vault.getPassword(pwdService(repoUrl), x.user)) || ""
     return x
   }
-  const savePwd = (x: ScmCredentials) => {
-    vault.setPassword(pwdService(repoUrl), x.user, x.password)
+  const savePwd = async (x: ScmCredentials) => {
+    await vault.setPassword(pwdService(repoUrl), x.user, x.password)
     return x
   }
   const getUser = mandInbox(`Username for ${repoUrl}`)

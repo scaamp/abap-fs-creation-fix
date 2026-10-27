@@ -1,5 +1,31 @@
 # Patched distribution changelog
 
+## v2.13.2-mcp-preview.3 — 2026-10-27
+
+- Add an explicit **ABAP FS: Configure abapGit credentials** command to the Command Palette and repository context menu. Reuse the existing credential prompts and profile SecretStorage without entering the commit/push workflow. Wait for storage writes before reporting success; no secrets in MCP arguments or results.
+- Refresh restored abapGit repositories whenever the user registers them in Source Control. Await loading, open Source Control and report sanitized errors. Normalize connection ID casing to avoid duplicate repository/SCM entries.
+- Point MCP `AUTH_REQUIRED` at the explicit setup command. Retain all OData/read and reviewed commit+push guards from preview 2. No new SAP write or Git push is triggered by credential setup or registration.
+
+Validation: **4462 tests / 264 files PASS**, build/typecheck and formatting PASS. The packaged VSIX was exercised in an isolated host and installed in the intended user profile. Live MCP verified exact two-file prepare/commit+push with independent GitHub commit/content checks, clean post-export staging, authenticated V4 metadata, three collections and two direct expansions (HTTP 200). See [validation and limits](docs/mcp-preview-validation.md). This prerelease retains stable creation fix 5 as the stable download.
+
+## 2.13.1 MCP preview 2 — 2026-10-26 (local candidate, included in preview 3)
+
+- Retain the eight abapGit preview tools and add only three OData tools: resolve an existing service binding, read runtime metadata and query a bounded collection with optional direct expansions.
+- Limit this first OData implementation to active published V4 bindings and an already connected same-origin Cloud OAuth profile. No arbitrary URLs/headers, publication, actions/functions, filters, automatic paging or SAP writes.
+- Validate explicit scalar selections against freshly read XML CSDL, bound parent/child rows and remove unselected values. Require safe Decimal/Int64 string representation; do not silently round amounts.
+- Bind expiring service references to the client/connection/origin. Reject redirects, DTD/entities, unresolved required schemas and unexpected HTML login pages. Bound and redact HTTP diagnostics without exporting SDK credential/configuration objects.
+- Add API source patch 14 to forward optional redirect and response-size limits to Axios without changing old defaults. Negotiate known ADT binding/details representations, including the V1/V2 discrepancy observed by the live spike.
+- Private live spikes verified authenticated metadata/data reads and a two-navigation key-only expansion. These are read-only checks, distinct from the eventual MCP/packaged-VSIX acceptance test; no business data was changed.
+
+## 2.13.0 abapGit MCP preview 1 — 2026-10-26 (local candidate, included in preview 3)
+
+- Add eight MCP/LM tools for backend repositories, capabilities, serialized status/diffs, remote refs, exact commit preparation, combined commit+push and persisted attempt metadata. Reuse the existing ADT adapter; no Eclipse automation or direct calls to external Git services.
+- Keep the backend semantics explicit: preparing is not committing; remote refs are not a local object fetch; standalone commit, merge, import and branch mutation are not exposed.
+- Bind a single-use, expiring review to exact files, identities, message, repository and remote SHA. Recheck serialized content, staging and backend-visible inactive changes before submission. Block unintended deletions and changed reviews; preserve unselected files. There is no backend atomic compare-and-swap guarantee against concurrent clients.
+- Record attempts before POST; return accepted/unknown without inventing a completed commit or retrying an ambiguous request. Reuse VS Code secret storage without credential tool parameters or hidden prompts.
+- API source patch 13 escapes abapGit XML and preserves a distinct committer and multiline message. Redact abapGit credential headers and password XML from request logs.
+- Candidate version/display name distinguish the preview from stable creation fix 5. Automated tests do not establish live export compatibility; no SAP import, activation or Git push is performed during implementation.
+
 ## v2.12.4-adt-creation-fix.5 — 2026-10-25
 
 - Fix creation transport selection for local Cloud packages whose component is not the classic `LOCAL`. Read `pak:recordChanges` from the actual package before choosing or creating a transport. Explicit `false` skips the picker for the wizard and both MCP transport modes, including an otherwise explicit new-request choice.

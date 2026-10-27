@@ -115,11 +115,130 @@ vi.mock("uuid", () => ({
   })
 }))
 
-import { confirmPull, packageUri } from "./abapgit"
+import { abapGitProvider, confirmPull, packageUri } from "./abapgit"
+import { commands, workspace } from "vscode"
+import { getClient, getOrCreateClient } from "../adt/conections"
+import { addRepo, repoCredentials } from "../scm/abapGit"
+import { quickPick } from "../lib"
 import { funWindow as window } from "../services/funMessenger"
 import type { Mocked, Mock } from "vitest"
 
 const mockedWindow = window as Mocked<typeof window>
+
+describe("abapGit setup and opening", () => {
+  const repo = {
+    key: "example",
+    sapPackage: "ZEXAMPLE",
+    url: "https://git.example/repo.git",
+    branch_name: "refs/heads/main",
+    links: []
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.assign(workspace, {
+      workspaceFolders: [
+        { uri: { scheme: "adt", authority: "DEV100" } },
+        { uri: { scheme: "adt", authority: "dev100" } }
+      ]
+    })
+    vi.mocked(getClient).mockReturnValue({
+      featureDetails: vi.fn().mockResolvedValue(true),
+      gitRepos: vi.fn().mockResolvedValue([repo])
+    } as never)
+    vi.mocked(quickPick).mockReturnValue(async () => ({ _tag: "Right", right: { repo } }) as never)
+    vi.mocked(repoCredentials).mockResolvedValue({ _tag: "None" })
+  })
+
+  afterEach(() => {
+    Object.assign(workspace, { workspaceFolders: [] })
+  })
+
+  it("deduplicates connection casing before offering repositories", async () => {
+    await abapGitProvider.configureCredentials()
+    expect(getOrCreateClient).toHaveBeenCalledTimes(1)
+    expect(getOrCreateClient).toHaveBeenCalledWith("dev100")
+    expect(quickPick).toHaveBeenCalledWith(
+      [expect.objectContaining({ label: "dev100 / ZEXAMPLE", repo })],
+      expect.any(Object)
+    )
+    expect(repoCredentials).toHaveBeenCalledWith(repo.url)
+    expect(addRepo).not.toHaveBeenCalled()
+    expect(commands.executeCommand).not.toHaveBeenCalled()
+  })
+
+  it("does not prompt for credentials when repository selection is cancelled", async () => {
+    vi.mocked(quickPick).mockReturnValueOnce(async () => ({ _tag: "Left", left: {} }) as never)
+    await abapGitProvider.configureCredentials()
+    expect(repoCredentials).not.toHaveBeenCalled()
+    expect(mockedWindow.showInformationMessage).not.toHaveBeenCalled()
+  })
+
+  it("reports saved credentials without returning or displaying the secret", async () => {
+    vi.mocked(repoCredentials).mockResolvedValueOnce({
+      _tag: "Some",
+      value: { user: "example", password: "example-secret" }
+    })
+    const result = await abapGitProvider.configureCredentials()
+    expect(result).toBeUndefined()
+    expect(mockedWindow.showInformationMessage).toHaveBeenCalledWith(
+      expect.stringContaining("No commit, push, pull or activation")
+    )
+    expect(JSON.stringify(mockedWindow.showInformationMessage.mock.calls)).not.toContain(
+      "example-secret"
+    )
+  })
+
+  it("does not claim success after credential entry is cancelled", async () => {
+    await abapGitProvider.configureCredentials()
+    expect(mockedWindow.showInformationMessage).not.toHaveBeenCalled()
+  })
+
+  it("reports unavailable repositories without starting credential entry", async () => {
+    Object.assign(workspace, { workspaceFolders: [] })
+    await abapGitProvider.configureCredentials()
+    expect(repoCredentials).not.toHaveBeenCalled()
+    expect(mockedWindow.showInformationMessage).toHaveBeenCalledWith(
+      expect.stringContaining("No linked abapGit repositories")
+    )
+  })
+
+  it("sanitizes setup errors instead of exposing HTTP credential details", async () => {
+    vi.mocked(repoCredentials).mockRejectedValueOnce(new Error("password=example-secret"))
+    await abapGitProvider.configureCredentials()
+    expect(mockedWindow.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Could not configure")
+    )
+    expect(JSON.stringify(mockedWindow.showErrorMessage.mock.calls)).not.toContain("example-secret")
+  })
+
+  it("waits for SCM refresh before showing Source Control and exposes failures", async () => {
+    const item = (await abapGitProvider.getChildren())[0]
+    const repoItem = (await abapGitProvider.getChildren(item))[0]
+    const provider = abapGitProvider as unknown as {
+      addScm(item: unknown): Promise<void>
+    }
+    let complete!: () => void
+    vi.mocked(addRepo).mockReturnValueOnce(
+      new Promise(resolve => {
+        complete = () => resolve({} as never)
+      })
+    )
+    const opening = provider.addScm(repoItem)
+    expect(commands.executeCommand).not.toHaveBeenCalled()
+    complete()
+    await opening
+    expect(commands.executeCommand).toHaveBeenCalledWith("workbench.view.scm")
+    vi.mocked(addRepo).mockRejectedValueOnce(new Error("private-http-detail"))
+    await provider.addScm(repoItem)
+    expect(mockedWindow.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Could not load abapGit changes")
+    )
+    expect(JSON.stringify(mockedWindow.showErrorMessage.mock.calls)).not.toContain(
+      "private-http-detail"
+    )
+  })
+})
 
 describe("confirmPull", () => {
   beforeEach(() => {

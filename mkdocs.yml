@@ -31,6 +31,8 @@ nav:
       - Installation and rollback: adt-creation-fix.md
       - Creation contract audit: adt-creation-matrix.md
       - Potential MCP features (proposal): potential-mcp-features.md
+      - OData V4 read tools (preview): odata-read-tools.md
+      - MCP preview validation: mcp-preview-validation.md
   - Getting Started:
       - Prerequisites: getting-started/prerequisite.md
       - Installation: getting-started/installation.md

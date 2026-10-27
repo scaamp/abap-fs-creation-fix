@@ -55,7 +55,8 @@ export const isAgResState = (x: any): x is AgResState => !!(x?.data?.connId && x
 
 const scms = new Map<string, ScmData>()
 
-export const scmKey = (connId: string, repoKey: string) => `abapGit_${connId}_${repoKey}`
+export const scmKey = (connId: string, repoKey: string) =>
+  `abapGit_${connId.toLowerCase()}_${repoKey}`
 
 export const scmData = (key: string) => scms.get(key)
 export const fileUri = (file: GitStagingFile) =>
@@ -140,7 +141,8 @@ export async function addRepo(connId: string, repo: GitRepo, addnew = false) {
   gitScm.groups.get(UNSTAGED)
   gitScm.groups.get(IGNORED)
   if (!addnew) gitScm.notNew = true
-  if (addnew && !gitScm.notNew) await refresh(gitScm).then(() => saveRepos(scms))
+  // Ręczne otwarcie odświeża również repo odtworzone ze storage po restarcie.
+  if (addnew) await refresh(gitScm).then(() => saveRepos(scms))
   return gitScm
 }
 

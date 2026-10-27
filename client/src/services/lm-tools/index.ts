@@ -5,6 +5,8 @@
 
 import * as vscode from "vscode"
 import { registerToolWithRegistry } from "./toolRegistry"
+import { registerAbapGitTools } from "./abapGitTools"
+import { registerODataReadTools } from "./odataReadTools"
 import { registerMermaidTools } from "./mermaidTools"
 import { registerDumpAnalysisTool } from "./dumpAnalysisTool"
 import { registerTraceAnalysisTool } from "./traceAnalysisTool"
@@ -166,6 +168,8 @@ export async function registerAllTools(context: vscode.ExtensionContext): Promis
   // 18. ADT Discovery Tool
   registerAdtDiscoveryTool(context)
   registerCreationDiagnosticsTool(context)
+  registerAbapGitTools(context)
+  registerODataReadTools(context)
 
   // 19. Object Relations Tool
   registerRelationAnalysisTool(context)

@@ -1,0 +1,192 @@
+--- a/src/api/abapgit.ts
++++ b/src/api/abapgit.ts
+@@ -165,9 +165,9 @@
+   }
+   const body = `<?xml version="1.0" ?>
+   <abapgitexternalrepo:externalRepoInfoRequest xmlns:abapgitexternalrepo="http://www.sap.com/adt/abapgit/externalRepo">
+-    <abapgitexternalrepo:url>${repourl}</abapgitexternalrepo:url>
+-    <abapgitexternalrepo:user>${user}</abapgitexternalrepo:user>
+-    <abapgitexternalrepo:password>${password}</abapgitexternalrepo:password>
++    <abapgitexternalrepo:url>${encodeEntity(repourl)}</abapgitexternalrepo:url>
++    <abapgitexternalrepo:user>${encodeEntity(user)}</abapgitexternalrepo:user>
++    <abapgitexternalrepo:password>${encodeEntity(password)}</abapgitexternalrepo:password>
+   </abapgitexternalrepo:externalRepoInfoRequest>`
+ 
+   const response = await h.request(`/sap/bc/adt/abapgit/externalrepoinfo`, {
+@@ -282,7 +282,7 @@
+   })
+ }
+ const deserializeStaging = (body: string) => {
+-  const raw = xmlNode(fullParse(body), "abapgitstaging:abapgitstaging")
++  const raw = xmlNode(fullParse(body, { htmlEntities: true }), "abapgitstaging:abapgitstaging")
+   const parsefile = (x: any) =>
+   ({
+     ...stripNs(xmlNodeAttr(x)),
+@@ -319,7 +319,7 @@
+     stripNs(xmlNodeAttr(xmlNode(commentNode, p))) as GitUser
+   const comment = commentNode["@_abapgitstaging:comment"] || ""
+   const author = extractUser("abapgitstaging:author")
+-  const committer = extractUser("abapgitstaging:author")
++  const committer = extractUser("abapgitstaging:committer")
+   const result: GitStaging = {
+     staged,
+     unstaged,
+@@ -332,24 +332,28 @@
+ }
+ 
+ const serializeStaging = (s: GitStaging) => {
++  const attribute = (value: string) => encodeEntity(value)
++    .replace(/\r/g, "&#13;").replace(/\n/g, "&#10;").replace(/\t/g, "&#9;")
++  const attributes = (values: object, prefix: string) => toXmlAttributes(
++    Object.fromEntries(Object.entries(values).map(([key, value]) => [key, attribute(String(value))])), prefix
++  )
+   const formatFile = (f: GitStagingFile) => {
+     const { links, ...rest } = f
+-    return `  <abapgitstaging:abapgitfile ${toXmlAttributes(
++    return `  <abapgitstaging:abapgitfile ${attributes(
+       rest,
+       "abapgitstaging"
+     )}>${links
+-      .map((l) => ({ ...l, href: encodeEntity(l.href) }))
+-      .map((l) => `<atom:link ${toXmlAttributes(l, "")}/>`)
++      .map((l) => `<atom:link ${attributes(l, "")}/>`)
+       .join("")}
+   </abapgitstaging:abapgitfile>`
+   }
+ 
+   const formatObject = (obj: GitStagingObject) => {
+     const { abapGitFiles, wbkey, ...rest } = obj
+-    return `<abapgitstaging:abapgitobject ${toXmlAttributes(
++    return `<abapgitstaging:abapgitobject ${attributes(
+       rest,
+       "adtcore"
+-    )} abapgitstaging:wbkey="${obj.wbkey}">
++    )} abapgitstaging:wbkey="${attribute(obj.wbkey)}">
+     ${obj.abapGitFiles.map(formatFile).join("")}
+  </abapgitstaging:abapgitobject>`
+   }
+@@ -361,9 +365,9 @@
+   const unstaged = formatObjects(s.unstaged, "abapgitstaging:unstaged_objects")
+   const staged = formatObjects(s.staged, "abapgitstaging:staged_objects")
+   const ignored = formatObjects(s.ignored, "abapgitstaging:ignored_objects")
+-  const comment = `<abapgitstaging:abapgit_comment abapgitstaging:comment="${s.comment}">
+-  <abapgitstaging:author abapgitstaging:name="${s.author.name}" abapgitstaging:email="${s.author.email}"/>
+-  <abapgitstaging:committer abapgitstaging:name="${s.committer.name}" abapgitstaging:email="${s.committer.email}"/>
++  const comment = `<abapgitstaging:abapgit_comment abapgitstaging:comment="${attribute(s.comment)}">
++  <abapgitstaging:author abapgitstaging:name="${attribute(s.author.name)}" abapgitstaging:email="${attribute(s.author.email)}"/>
++  <abapgitstaging:committer abapgitstaging:name="${attribute(s.committer.name)}" abapgitstaging:email="${attribute(s.committer.email)}"/>
+ </abapgitstaging:abapgit_comment>
+ `
+ 
+--- a/src/requestLogger.ts
++++ b/src/requestLogger.ts
+@@ -33,7 +33,7 @@
+   (data: LogData): void
+ }
+ 
+-const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization|proxy-authorization)$/i
++const SENSITIVE_HEADER = /^(cookie|set-cookie|authorization|proxy-authorization|username|password)$/i
+ 
+ export const redactSensitiveHeaders = <T extends object | undefined>(
+   headers: T
+@@ -93,9 +93,17 @@
+     uri: isString(url) ? url : "",
+     params: isObject(qs) ? { ...qs } : {},
+     headers: isObject(headers) ? redactLogHeaders({ ...headers }) : {},
+-    body: isString(body) || isUndefined(body) ? body : JSON.stringify(body)
++    body: redactGitBody(isString(url) ? url : "", isString(body) || isUndefined(body) ? body : JSON.stringify(body))
+   }
+ }
++// abapGit przekazuje Git PAT także w XML, niezależnie od nagłówków sesji ADT.
++const redactGitBody = (url: string, body?: string): string | undefined =>
++  /\/abapgit\//i.test(url) && body
++    ? body.replace(
++      /(<(?:[\w.-]+:)?(?:password|remotePassword)\b[^>]*>)[\s\S]*?(<\/(?:[\w.-]+:)?(?:password|remotePassword)>)/gi,
++      "$1[redacted]$2"
++    )
++    : body
+ const convertAxiosResponse = (original?: AxiosResponse): ResponseData => {
+   if (!original) return { headers: {}, statusCode: 0, statusMessage: "" }
+   const { headers, data, status, statusText } = original
+--- /dev/null
++++ b/src/api/abapgit.test.ts
+@@ -0,0 +1,54 @@
++import { XMLParser, XMLValidator } from "fast-xml-parser"
++import { AdtHTTP } from "../AdtHTTP"
++import { externalRepoInfo, GitRepo, GitStaging, pushRepo, stageRepo } from "./abapgit"
++
++const repo: GitRepo = {
++  key: "example", sapPackage: "ZEXAMPLE", url: "https://git.example/repo.git",
++  branch_name: "refs/heads/main", created_by: "example", created_at: new Date(0),
++  links: [
++    { type: "stage_link", rel: "stage", href: "/sap/bc/adt/abapgit/repos/example/stage" },
++    { type: "push_link", rel: "push", href: "/sap/bc/adt/abapgit/repos/example/push" }
++  ]
++}
++const parser = new XMLParser({ ignoreAttributes: false, processEntities: true, htmlEntities: true })
++
++test("commit+push XML preserves author, committer, multiline comment and XML-special paths", async () => {
++  const request = jest.fn().mockResolvedValue({ body: "" })
++  const staging: GitStaging = {
++    staged: [{ wbkey: 'CLAS Z"&TEST', uri: '/example?x=1&y=2', type: "CLAS", name: "ZEXAMPLE",
++      abapGitFiles: [{ name: 'z"&test.clas.abap', path: "/src/", localState: "M",
++        links: [{ rel: "localversion", href: "/example?x=1&y=2" }] }] }],
++    unstaged: [], ignored: [], comment: 'Fix "A&B"\nDetails <checked>',
++    author: { name: 'Author "A&B"', email: "author@example.invalid" },
++    committer: { name: "Different committer", email: "committer@example.invalid" }
++  }
++  await pushRepo({ request } as unknown as AdtHTTP, repo, staging, "example", "example-secret")
++  const [, options] = request.mock.calls[0]
++  expect(options.method).toBe("POST")
++  expect(options.headers["Content-Type"]).toBe("application/abapgit.adt.repo.stage.v1+xml")
++  expect(XMLValidator.validate(options.body)).toBe(true)
++  const parsed = parser.parse(options.body)["abapgitstaging:abapgitstaging"]
++  const comment = parsed["abapgitstaging:abapgit_comment"]
++  expect(comment["@_abapgitstaging:comment"]).toBe(staging.comment)
++  expect(comment["abapgitstaging:author"]["@_abapgitstaging:name"]).toBe(staging.author.name)
++  const object = parsed["abapgitstaging:staged_objects"]["abapgitstaging:abapgitobject"]
++  expect(object["@_abapgitstaging:wbkey"]).toBe(staging.staged[0].wbkey)
++  expect(object["abapgitstaging:abapgitfile"]["@_abapgitstaging:name"]).toBe(staging.staged[0].abapGitFiles[0].name)
++  const readRequest = jest.fn().mockResolvedValue({ body: options.body })
++  const read = await stageRepo({ request: readRequest } as unknown as AdtHTTP, repo)
++  expect(read.author).toEqual(staging.author)
++  expect(read.committer).toEqual(staging.committer)
++  expect(readRequest.mock.calls[0][1].method).toBeUndefined()
++})
++
++test("remote refs XML escapes URL and credential values without changing the transmitted values", async () => {
++  const request = jest.fn().mockResolvedValue({ body: "<externalRepoInfo/>" })
++  const url = "https://git.example/repo?x=1&y=2"
++  const secret = 'fake<&"secret'
++  await externalRepoInfo({ request } as unknown as AdtHTTP, url, 'example&user', secret)
++  const body = request.mock.calls[0][1].body
++  expect(XMLValidator.validate(body)).toBe(true)
++  const parsed = parser.parse(body)["abapgitexternalrepo:externalRepoInfoRequest"]
++  expect(parsed["abapgitexternalrepo:password"]).toBe(secret)
++  expect(parsed["abapgitexternalrepo:url"]).toBe(url)
++})
+--- a/src/requestLogger.test.ts
++++ b/src/requestLogger.test.ts
+@@ -1,5 +1,21 @@
+ import { AdtHTTP, HttpClient, HttpClientException, HttpClientResponse } from "./AdtHTTP"
+ import { isAdtError } from "./AdtException"
+-import { LogData } from "./requestLogger"
++import { LogData, logResponse } from "./requestLogger"
++
++test("abapGit logs redact PAT headers and XML passwords without modifying the wire request", () => {
++  const entries: LogData[] = []
++  const request = {
++    url: "/sap/bc/adt/abapgit/externalrepoinfo", method: "POST" as const,
++    headers: { Username: "fake-user", Password: "fake-encoded-pat" },
++    body: '<git:request><git:password>fake&amp;pat</git:password><git:remotePassword>second-pat</git:remotePassword></git:request>'
++  }
++  logResponse(1, { status: 200, statusText: "OK", headers: {}, body: "<ok/>" }, request, entry => entries.push(entry))
++  expect(entries).toHaveLength(1)
++  const serialized = JSON.stringify(entries)
++  for (const secret of ["fake-user", "fake-encoded-pat", "fake&amp;pat", "second-pat"])
++    expect(serialized).not.toContain(secret)
++  expect(request.headers.Password).toBe("fake-encoded-pat")
++  expect(request.body).toContain("fake&amp;pat")
++})
+ 
+ const body = `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="adt"/><type id="CLASS_TRANSFORMATION"/><message>Cannot deserialize class</message></exc:exception>`

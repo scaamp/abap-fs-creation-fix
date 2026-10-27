@@ -91,6 +91,9 @@ import {
   type ScmData
 } from "./scm"
 import { Uri } from "vscode"
+import { getClient } from "../../adt/conections"
+import { dataCredentials } from "./credentials"
+import { saveRepos } from "./storage"
 import * as __$mock_fp_ts_lib_Option from "fp-ts/lib/Option"
 
 describe("constants", () => {
@@ -106,6 +109,9 @@ describe("constants", () => {
 })
 
 describe("scmKey", () => {
+  it("uses the same SCM entry for connection IDs differing only in case", () => {
+    expect(scmKey("DEV100", "repo")).toBe(scmKey("dev100", "repo"))
+  })
   it("generates correct key format", () => {
     expect(scmKey("conn1", "ZPACKAGE")).toBe("abapGit_conn1_ZPACKAGE")
   })
@@ -207,6 +213,24 @@ describe("setStatusCommand", () => {
 
 describe("addRepo", () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it("refreshes restored repositories on each explicit open without duplicating connection casing", async () => {
+    const repo = { key: "restored", sapPackage: "ZRESTORED", branch_name: "main" }
+    const gitRepos = vi.fn().mockResolvedValue([repo])
+    const stageRepo = vi.fn().mockResolvedValue({ staged: [], unstaged: [], ignored: [] })
+    vi.mocked(getClient).mockReturnValue({ gitRepos, stageRepo } as never)
+    vi.mocked(dataCredentials).mockResolvedValue({
+      _tag: "Some",
+      value: { user: "", password: "" }
+    })
+    vi.mocked(__$mock_fp_ts_lib_Option.isNone).mockReturnValue(false)
+    const restored = await addRepo("DEV100", repo as never, false)
+    expect(stageRepo).not.toHaveBeenCalled()
+    expect(await addRepo("dev100", repo as never, true)).toBe(restored)
+    expect(await addRepo("DEV100", repo as never, true)).toBe(restored)
+    expect(stageRepo).toHaveBeenCalledTimes(2)
+    expect(saveRepos).toHaveBeenCalledTimes(2)
+  })
 
   it("creates a new ScmData when not existing", async () => {
     const mockRepo: any = {
