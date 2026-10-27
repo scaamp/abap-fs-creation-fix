@@ -1,5 +1,11 @@
 # Patched distribution changelog
 
+## v2.13.3-mcp-preview.4 — 2026-10-27
+
+- Replace the introductory creation-fix-only description with a concise cumulative list of our fixes and additions compared with upstream. Use the same README on GitHub and in the VS Code extension description.
+- Keep version-specific changes in Releases and the changelog, with links to detailed validation and guides. Update the preview download link.
+- Documentation and package identification only; no changes to the abapGit/OData tools, API runtime patch or SAP behavior from 2.13.2.
+
 ## v2.13.2-mcp-preview.3 — 2026-10-27
 
 - Add an explicit **ABAP FS: Configure abapGit credentials** command to the Command Palette and repository context menu. Reuse the existing credential prompts and profile SecretStorage without entering the commit/push workflow. Wait for storage writes before reporting success; no secrets in MCP arguments or results.

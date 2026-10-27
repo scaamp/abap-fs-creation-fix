@@ -1,8 +1,8 @@
 {
   "name": "vscode-abap-remote-fs",
-  "displayName": "ABAP remote filesystem (MCP preview 3: abapGit setup fix)",
+  "displayName": "ABAP remote filesystem (MCP preview 4)",
   "description": "VS Code-based Agentic AI Platform for SAP ABAP Development",
-  "version": "2.13.2",
+  "version": "2.13.3",
   "publisher": "murbani",
   "publishConfig": {
     "access": "restricted",
